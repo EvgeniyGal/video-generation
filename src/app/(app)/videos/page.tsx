@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type VideoRow = {
   id: string;
@@ -19,6 +20,7 @@ type VideoRow = {
 };
 
 export default function VideosPage() {
+  const { t, tf } = useLocale();
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -30,8 +32,8 @@ export default function VideosPage() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 15000);
+    return () => clearInterval(timer);
   }, [load]);
 
   async function pollNow() {
@@ -42,7 +44,7 @@ export default function VideosPage() {
       setMessage(data.error || "Poll failed");
       return;
     }
-    setMessage(`Processed ${data.processed ?? 0}`);
+    setMessage(tf(t.videos.processed, { count: data.processed ?? 0 }));
     await load();
   }
 
@@ -50,11 +52,11 @@ export default function VideosPage() {
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <h1 style={{ margin: 0 }}>Videos</h1>
-          <p className="muted">HeyGen renders re-hosted to public Supabase Storage.</p>
+          <h1 style={{ margin: 0 }}>{t.videos.title}</h1>
+          <p className="muted">{t.videos.subtitle}</p>
         </div>
         <button className="btn btn-secondary" onClick={pollNow}>
-          Poll HeyGen now
+          {t.videos.poll}
         </button>
       </div>
       {message ? <div className="muted">{message}</div> : null}
@@ -99,11 +101,11 @@ export default function VideosPage() {
                   borderRadius: 8,
                 }}
               >
-                Rendering…
+                {t.videos.rendering}
               </div>
             )}
             <div>
-              <strong>{video.draft?.hook || "Untitled"}</strong>
+              <strong>{video.draft?.hook || t.videos.untitled}</strong>
               <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
                 {video.draft?.caption?.slice(0, 120)}
               </div>
@@ -114,12 +116,12 @@ export default function VideosPage() {
               </div>
             ) : null}
             <div className="muted" style={{ fontSize: "0.75rem" }}>
-              Session: {video.heygenSessionId || "—"}
+              {t.videos.session}: {video.heygenSessionId || "—"}
             </div>
           </div>
         ))}
       </div>
-      {!videos.length ? <p className="muted">No videos yet.</p> : null}
+      {!videos.length ? <p className="muted">{t.videos.empty}</p> : null}
     </div>
   );
 }

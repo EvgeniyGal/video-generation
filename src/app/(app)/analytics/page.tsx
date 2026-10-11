@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type Metric = { type: string; name: string; value: number; unit: string };
 
@@ -23,6 +24,7 @@ type Row = {
 };
 
 export default function AnalyticsPage() {
+  const { t, tf } = useLocale();
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,11 @@ export default function AnalyticsPage() {
       return;
     }
     setMessage(
-      `Synced ${data.synced}/${data.total} (errors: ${data.errors ?? 0})`,
+      tf(t.analytics.synced, {
+        synced: data.synced,
+        total: data.total,
+        errors: data.errors ?? 0,
+      }),
     );
     await load();
   }
@@ -57,14 +63,11 @@ export default function AnalyticsPage() {
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <h1 style={{ margin: 0 }}>Analytics</h1>
-          <p className="muted">
-            Buffer metrics refresh ~daily. A cron job syncs at 06:00 UTC; you can
-            also pull now.
-          </p>
+          <h1 style={{ margin: 0 }}>{t.analytics.title}</h1>
+          <p className="muted">{t.analytics.subtitle}</p>
         </div>
         <button className="btn" onClick={syncNow} disabled={loading}>
-          {loading ? "Syncing…" : "Sync metrics now"}
+          {loading ? t.analytics.syncing : t.analytics.sync}
         </button>
       </div>
       {message ? <div className="muted">{message}</div> : null}
@@ -73,11 +76,11 @@ export default function AnalyticsPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>Post</th>
-              <th>Channel</th>
-              <th>Status</th>
-              <th>Metrics</th>
-              <th>Updated</th>
+              <th>{t.analytics.post}</th>
+              <th>{t.analytics.channel}</th>
+              <th>{t.status}</th>
+              <th>{t.analytics.metrics}</th>
+              <th>{t.analytics.updated}</th>
             </tr>
           </thead>
           <tbody>
@@ -114,7 +117,7 @@ export default function AnalyticsPage() {
                       ))}
                     </div>
                   ) : (
-                    <span className="muted">No metrics yet</span>
+                    <span className="muted">{t.analytics.noMetrics}</span>
                   )}
                 </td>
                 <td className="muted">
@@ -129,7 +132,7 @@ export default function AnalyticsPage() {
             {!rows.length ? (
               <tr>
                 <td colSpan={5} className="muted">
-                  No scheduled posts yet.
+                  {t.analytics.empty}
                 </td>
               </tr>
             ) : null}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type Draft = {
   id: string;
@@ -26,6 +27,7 @@ type Voice = {
 };
 
 export default function DraftsPage() {
+  const { t, tf } = useLocale();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -62,7 +64,7 @@ export default function DraftsPage() {
       return;
     }
     setEditing(null);
-    setMessage("Draft saved");
+    setMessage(t.drafts.saved);
     await load();
   }
 
@@ -96,8 +98,10 @@ export default function DraftsPage() {
       return;
     }
     setMessage(
-      `Started ${data.videos?.length ?? 0} generation(s)` +
-        (data.errors?.length ? `, ${data.errors.length} error(s)` : ""),
+      tf(t.drafts.started, { count: data.videos?.length ?? 0 }) +
+        (data.errors?.length
+          ? tf(t.ideas.errors, { count: data.errors.length })
+          : ""),
     );
     setSelected(new Set());
     await load();
@@ -112,13 +116,19 @@ export default function DraftsPage() {
     });
   }
 
+  const fieldLabels = [
+    ["hook", t.drafts.hook],
+    ["script", t.drafts.script],
+    ["caption", t.drafts.caption],
+    ["cta", t.drafts.cta],
+    ["visualStyle", t.drafts.visualStyle],
+  ] as const;
+
   return (
     <div className="stack">
       <div>
-        <h1 style={{ margin: 0 }}>Drafts</h1>
-        <p className="muted">
-          Review AI-prepared content, pick a voice, then generate videos on demand.
-        </p>
+        <h1 style={{ margin: 0 }}>{t.drafts.title}</h1>
+        <p className="muted">{t.drafts.subtitle}</p>
       </div>
 
       <div className="row">
@@ -127,14 +137,14 @@ export default function DraftsPage() {
           disabled={!selected.size || loading}
           onClick={approveSelected}
         >
-          Approve selected
+          {t.drafts.approve}
         </button>
         <button
           className="btn"
           disabled={!selected.size || loading}
           onClick={generateSelected}
         >
-          Generate videos ({selected.size})
+          {t.drafts.generate} ({selected.size})
         </button>
         {message ? <span className="muted">{message}</span> : null}
       </div>
@@ -144,9 +154,9 @@ export default function DraftsPage() {
           <thead>
             <tr>
               <th />
-              <th>Hook / Script</th>
-              <th>Caption</th>
-              <th>Status</th>
+              <th>{t.drafts.hookScript}</th>
+              <th>{t.drafts.caption}</th>
+              <th>{t.status}</th>
               <th />
             </tr>
           </thead>
@@ -189,7 +199,7 @@ export default function DraftsPage() {
                     className="btn btn-secondary"
                     onClick={() => setEditing(draft)}
                   >
-                    Edit
+                    {t.edit}
                   </button>
                 </td>
               </tr>
@@ -197,7 +207,7 @@ export default function DraftsPage() {
             {!drafts.length ? (
               <tr>
                 <td colSpan={5} className="muted">
-                  No drafts yet. Prepare content from Ideas.
+                  {t.drafts.empty}
                 </td>
               </tr>
             ) : null}
@@ -217,17 +227,12 @@ export default function DraftsPage() {
             zIndex: 50,
           }}
         >
-          <div className="card stack" style={{ width: "min(720px, 100%)", maxHeight: "90vh", overflow: "auto" }}>
-            <h2 style={{ margin: 0 }}>Edit draft</h2>
-            {(
-              [
-                ["hook", "Hook"],
-                ["script", "Script"],
-                ["caption", "Caption"],
-                ["cta", "CTA"],
-                ["visualStyle", "Visual style"],
-              ] as const
-            ).map(([key, label]) => (
+          <div
+            className="card stack"
+            style={{ width: "min(720px, 100%)", maxHeight: "90vh", overflow: "auto" }}
+          >
+            <h2 style={{ margin: 0 }}>{t.drafts.editTitle}</h2>
+            {fieldLabels.map(([key, label]) => (
               <div key={key}>
                 <label className="label">{label}</label>
                 <textarea
@@ -240,7 +245,7 @@ export default function DraftsPage() {
               </div>
             ))}
             <div>
-              <label className="label">Hashtags (comma-separated)</label>
+              <label className="label">{t.drafts.hashtags}</label>
               <input
                 className="input"
                 value={(editing.hashtags ?? []).join(", ")}
@@ -249,14 +254,14 @@ export default function DraftsPage() {
                     ...editing,
                     hashtags: e.target.value
                       .split(",")
-                      .map((t) => t.trim().replace(/^#/, ""))
+                      .map((x) => x.trim().replace(/^#/, ""))
                       .filter(Boolean),
                   })
                 }
               />
             </div>
             <div>
-              <label className="label">Voice</label>
+              <label className="label">{t.drafts.voice}</label>
               <select
                 className="select"
                 value={editing.voiceId ?? ""}
@@ -264,7 +269,7 @@ export default function DraftsPage() {
                   setEditing({ ...editing, voiceId: e.target.value || null })
                 }
               >
-                <option value="">HeyGen default / auto</option>
+                <option value="">{t.drafts.voiceDefault}</option>
                 {voices.map((v) => (
                   <option key={v.voice_id} value={v.voice_id}>
                     {v.name || v.voice_id}
@@ -275,7 +280,7 @@ export default function DraftsPage() {
               </select>
             </div>
             <div>
-              <label className="label">Avatar ID (optional)</label>
+              <label className="label">{t.drafts.avatarId}</label>
               <input
                 className="input"
                 value={editing.avatarId ?? ""}
@@ -286,13 +291,13 @@ export default function DraftsPage() {
             </div>
             <div className="row">
               <button className="btn" onClick={saveDraft} disabled={loading}>
-                Save
+                {t.save}
               </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => setEditing(null)}
               >
-                Cancel
+                {t.cancel}
               </button>
             </div>
           </div>

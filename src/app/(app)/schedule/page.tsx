@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type VideoRow = {
   id: string;
@@ -29,6 +30,7 @@ type Post = {
 };
 
 export default function SchedulePage() {
+  const { t } = useLocale();
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -89,7 +91,7 @@ export default function SchedulePage() {
       setMessage(data.error || "Failed to schedule");
       return;
     }
-    setMessage("Scheduled via Buffer");
+    setMessage(t.schedule.success);
     setVideoId("");
     await load();
   }
@@ -97,22 +99,20 @@ export default function SchedulePage() {
   return (
     <div className="stack">
       <div>
-        <h1 style={{ margin: 0 }}>Schedule</h1>
-        <p className="muted">
-          Pick a ready video and a Buffer channel (across any connected account).
-        </p>
+        <h1 style={{ margin: 0 }}>{t.schedule.title}</h1>
+        <p className="muted">{t.schedule.subtitle}</p>
       </div>
 
       <form className="card stack" onSubmit={onSubmit}>
         <div>
-          <label className="label">Ready video</label>
+          <label className="label">{t.schedule.readyVideo}</label>
           <select
             className="select"
             required
             value={videoId}
             onChange={(e) => setVideoId(e.target.value)}
           >
-            <option value="">Select video…</option>
+            <option value="">{t.schedule.selectVideo}</option>
             {videos.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.draft?.hook || v.id}
@@ -121,14 +121,14 @@ export default function SchedulePage() {
           </select>
         </div>
         <div>
-          <label className="label">Buffer channel</label>
+          <label className="label">{t.schedule.channel}</label>
           <select
             className="select"
             required
             value={channelId}
             onChange={(e) => setChannelId(e.target.value)}
           >
-            <option value="">Select channel…</option>
+            <option value="">{t.schedule.selectChannel}</option>
             {channels.map((ch) => (
               <option key={ch.id} value={ch.id}>
                 [{ch.accountLabel}] {ch.service} — {ch.displayName || ch.channelId}
@@ -137,7 +137,7 @@ export default function SchedulePage() {
           </select>
         </div>
         <div>
-          <label className="label">Post text</label>
+          <label className="label">{t.schedule.postText}</label>
           <textarea
             className="textarea"
             required
@@ -147,7 +147,7 @@ export default function SchedulePage() {
         </div>
         <div className="row">
           <div style={{ flex: 1, minWidth: 180 }}>
-            <label className="label">Mode</label>
+            <label className="label">{t.schedule.mode}</label>
             <select
               className="select"
               value={mode}
@@ -155,13 +155,13 @@ export default function SchedulePage() {
                 setMode(e.target.value as "addToQueue" | "customScheduled")
               }
             >
-              <option value="addToQueue">Add to queue</option>
-              <option value="customScheduled">Custom schedule</option>
+              <option value="addToQueue">{t.schedule.addToQueue}</option>
+              <option value="customScheduled">{t.schedule.customSchedule}</option>
             </select>
           </div>
           {mode === "customScheduled" ? (
             <div style={{ flex: 1, minWidth: 220 }}>
-              <label className="label">Due at (local)</label>
+              <label className="label">{t.schedule.dueAt}</label>
               <input
                 className="input"
                 type="datetime-local"
@@ -173,21 +173,21 @@ export default function SchedulePage() {
           ) : null}
         </div>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? "Scheduling…" : "Schedule post"}
+          {loading ? t.schedule.submitting : t.schedule.submit}
         </button>
         {message ? <div className="muted">{message}</div> : null}
       </form>
 
       <div className="card" style={{ overflowX: "auto" }}>
-        <h2 style={{ marginTop: 0 }}>Scheduled / posted</h2>
+        <h2 style={{ marginTop: 0 }}>{t.schedule.listTitle}</h2>
         <table className="table">
           <thead>
             <tr>
-              <th>Text</th>
-              <th>Mode</th>
-              <th>Due</th>
-              <th>Status</th>
-              <th>Buffer ID</th>
+              <th>{t.schedule.text}</th>
+              <th>{t.schedule.mode}</th>
+              <th>{t.schedule.due}</th>
+              <th>{t.status}</th>
+              <th>{t.schedule.bufferId}</th>
             </tr>
           </thead>
           <tbody>
@@ -199,7 +199,7 @@ export default function SchedulePage() {
                 </td>
                 <td>{p.mode}</td>
                 <td className="muted">
-                  {p.dueAt ? new Date(p.dueAt).toLocaleString() : "queue"}
+                  {p.dueAt ? new Date(p.dueAt).toLocaleString() : t.schedule.queue}
                 </td>
                 <td>
                   <StatusBadge status={p.status} />
@@ -210,7 +210,7 @@ export default function SchedulePage() {
             {!posts.length ? (
               <tr>
                 <td colSpan={5} className="muted">
-                  No posts yet.
+                  {t.schedule.empty}
                 </td>
               </tr>
             ) : null}

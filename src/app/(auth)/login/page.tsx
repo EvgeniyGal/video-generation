@@ -3,9 +3,12 @@
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/i18n/LocaleProvider";
+import type { Locale } from "@/i18n/messages";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t, locale, setLocale, locales } = useLocale();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +24,7 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (res?.error) {
-      setError("Invalid email or password");
+      setError(t.login.invalid);
       return;
     }
     router.push("/dashboard");
@@ -38,21 +41,43 @@ export default function LoginPage() {
       }}
     >
       <form className="card stack" style={{ width: "100%", maxWidth: 400 }} onSubmit={onSubmit}>
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <div
+            role="group"
+            aria-label={t.language}
+            style={{ display: "flex", gap: 6 }}
+          >
+            {locales.map((item) => {
+              const active = locale === item.code;
+              return (
+                <button
+                  key={item.code}
+                  type="button"
+                  className={active ? "btn" : "btn btn-secondary"}
+                  style={{ padding: "0.35rem 0.65rem", fontSize: "0.8rem" }}
+                  onClick={() => setLocale(item.code as Locale)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div>
-          <h1 style={{ margin: 0 }}>Reels Studio</h1>
+          <h1 style={{ margin: 0 }}>{t.login.title}</h1>
           <p className="muted" style={{ marginTop: 6 }}>
-            Sign in to manage ideas, videos, and Buffer posts.
+            {t.login.subtitle}
           </p>
         </div>
         <div>
           <label className="label" htmlFor="email">
-            Email
+            {t.login.email}
           </label>
           <input className="input" id="email" name="email" type="email" required />
         </div>
         <div>
           <label className="label" htmlFor="password">
-            Password
+            {t.login.password}
           </label>
           <input
             className="input"
@@ -64,7 +89,7 @@ export default function LoginPage() {
         </div>
         {error ? <div style={{ color: "var(--danger)" }}>{error}</div> : null}
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? t.login.submitting : t.login.submit}
         </button>
       </form>
     </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchJson } from "@/lib/fetch-json";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type Stats = {
   ideas: number;
@@ -12,6 +13,7 @@ type Stats = {
 };
 
 export default function DashboardPage() {
+  const { t } = useLocale();
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,20 +26,19 @@ export default function DashboardPage() {
   return (
     <div className="stack">
       <div>
-        <h1 style={{ margin: 0 }}>Dashboard</h1>
-        <p className="muted">Pipeline overview for reels content and publishing.</p>
+        <h1 style={{ margin: 0 }}>{t.dashboard.title}</h1>
+        <p className="muted">{t.dashboard.subtitle}</p>
       </div>
 
       {error ? (
         <div className="card" style={{ color: "var(--danger)" }}>
           {error}
           <div className="muted" style={{ marginTop: 8 }}>
-            If this mentions CONNECT_TIMEOUT, check that Postgres port 5542 (DIRECT_URL)
-            is reachable, then run <code>npm run db:push</code>.
+            {t.dashboard.dbHint}
           </div>
         </div>
       ) : !stats ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{t.loading}</p>
       ) : (
         <div
           style={{
@@ -46,27 +47,39 @@ export default function DashboardPage() {
             gap: "1rem",
           }}
         >
-          <StatCard label="Ideas" value={stats.ideas} href="/ideas" />
-          <StatCard label="Drafts" value={stats.drafts.total} href="/drafts" />
+          <StatCard label={t.dashboard.ideas} value={stats.ideas} href="/ideas" />
+          <StatCard label={t.dashboard.drafts} value={stats.drafts.total} href="/drafts" />
           <StatCard
-            label="Generating"
+            label={t.dashboard.generating}
             value={(stats.drafts.generating ?? 0) + (stats.videos.generating ?? 0)}
             href="/videos"
           />
-          <StatCard label="Ready videos" value={stats.videos.ready ?? 0} href="/videos" />
-          <StatCard label="Scheduled posts" value={stats.posts} href="/schedule" />
-          <StatCard label="Failed drafts" value={stats.drafts.failed ?? 0} href="/drafts" />
+          <StatCard
+            label={t.dashboard.readyVideos}
+            value={stats.videos.ready ?? 0}
+            href="/videos"
+          />
+          <StatCard
+            label={t.dashboard.scheduledPosts}
+            value={stats.posts}
+            href="/schedule"
+          />
+          <StatCard
+            label={t.dashboard.failedDrafts}
+            value={stats.drafts.failed ?? 0}
+            href="/drafts"
+          />
         </div>
       )}
 
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Workflow</h2>
+        <h2 style={{ marginTop: 0 }}>{t.dashboard.workflow}</h2>
         <ol className="muted" style={{ lineHeight: 1.7 }}>
-          <li>Add reel ideas</li>
-          <li>Prepare content with OpenAI (no video yet)</li>
-          <li>Approve drafts, pick a voice, generate with HeyGen</li>
-          <li>Schedule to a Buffer channel</li>
-          <li>Review daily metrics in Analytics</li>
+          <li>{t.dashboard.step1}</li>
+          <li>{t.dashboard.step2}</li>
+          <li>{t.dashboard.step3}</li>
+          <li>{t.dashboard.step4}</li>
+          <li>{t.dashboard.step5}</li>
         </ol>
       </div>
     </div>

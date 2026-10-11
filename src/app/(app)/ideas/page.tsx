@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { fetchJson } from "@/lib/fetch-json";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type Idea = {
   id: string;
@@ -12,6 +13,7 @@ type Idea = {
 };
 
 export default function IdeasPage() {
+  const { t, tf } = useLocale();
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkText, setBulkText] = useState("");
@@ -52,7 +54,7 @@ export default function IdeasPage() {
       return;
     }
     setBulkText("");
-    setMessage(`Added ${lines.length} idea(s)`);
+    setMessage(tf(t.ideas.added, { count: lines.length }));
     await load();
   }
 
@@ -72,8 +74,10 @@ export default function IdeasPage() {
       return;
     }
     setMessage(
-      `Prepared ${data.drafts?.length ?? 0} draft(s)` +
-        (data.errors?.length ? `, ${data.errors.length} error(s)` : ""),
+      tf(t.ideas.prepared, { count: data.drafts?.length ?? 0 }) +
+        (data.errors?.length
+          ? tf(t.ideas.errors, { count: data.errors.length })
+          : ""),
     );
     setSelected(new Set());
     await load();
@@ -91,26 +95,23 @@ export default function IdeasPage() {
   return (
     <div className="stack">
       <div>
-        <h1 style={{ margin: 0 }}>Ideas</h1>
-        <p className="muted">
-          Capture reel ideas. Preparing content uses OpenAI only — videos are never
-          generated automatically.
-        </p>
+        <h1 style={{ margin: 0 }}>{t.ideas.title}</h1>
+        <p className="muted">{t.ideas.subtitle}</p>
       </div>
 
       <form className="card stack" onSubmit={addIdeas}>
         <div>
-          <label className="label">Add ideas (one per line)</label>
+          <label className="label">{t.ideas.addLabel}</label>
           <textarea
             className="textarea"
             value={bulkText}
             onChange={(e) => setBulkText(e.target.value)}
-            placeholder="Why cold emails fail in 2026&#10;3 lessons from shipping weekly"
+            placeholder={t.ideas.placeholder}
           />
         </div>
         <div className="row">
           <button className="btn" type="submit" disabled={loading}>
-            Add ideas
+            {t.ideas.add}
           </button>
           <button
             className="btn btn-secondary"
@@ -118,7 +119,7 @@ export default function IdeasPage() {
             disabled={loading || !selected.size}
             onClick={prepareSelected}
           >
-            Prepare content ({selected.size})
+            {t.ideas.prepare} ({selected.size})
           </button>
         </div>
         {message ? <div className="muted">{message}</div> : null}
@@ -129,9 +130,9 @@ export default function IdeasPage() {
           <thead>
             <tr>
               <th />
-              <th>Idea</th>
-              <th>Status</th>
-              <th>Created</th>
+              <th>{t.ideas.idea}</th>
+              <th>{t.status}</th>
+              <th>{t.created}</th>
             </tr>
           </thead>
           <tbody>
@@ -159,7 +160,7 @@ export default function IdeasPage() {
             {!ideas.length ? (
               <tr>
                 <td colSpan={4} className="muted">
-                  No ideas yet.
+                  {t.ideas.empty}
                 </td>
               </tr>
             ) : null}

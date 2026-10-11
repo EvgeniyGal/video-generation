@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 type Settings = {
   openaiConfigured: boolean;
@@ -17,6 +18,7 @@ type Settings = {
 };
 
 export default function SettingsPage() {
+  const { t, tf } = useLocale();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [heygenApiKey, setHeygenApiKey] = useState("");
@@ -65,7 +67,6 @@ export default function SettingsPage() {
     setGlobalStyle(data.globalStyle ?? "");
     setOpenaiModel(data.openaiModel ?? "gpt-4.1-mini");
     if (data.openaiConfigured) {
-      // refresh model list after settings load
       void loadModels();
     } else {
       setOpenaiModels([]);
@@ -100,7 +101,7 @@ export default function SettingsPage() {
     }
     setOpenaiApiKey("");
     setHeygenApiKey("");
-    setMessage("Settings saved");
+    setMessage(t.settings.saved);
     await load();
   }
 
@@ -122,7 +123,10 @@ export default function SettingsPage() {
     setBufferLabel("");
     setBufferApiKey("");
     setMessage(
-      `Connected ${data.account.label} with ${data.channels?.length ?? 0} channel(s)`,
+      tf(t.settings.connectedMsg, {
+        label: data.account.label,
+        count: data.channels?.length ?? 0,
+      }),
     );
     await load();
   }
@@ -138,71 +142,80 @@ export default function SettingsPage() {
     setLoading(false);
     setMessage(
       res.ok
-        ? `Synced ${data.channels?.length ?? 0} channels`
+        ? tf(t.settings.syncedChannels, { count: data.channels?.length ?? 0 })
         : data.error || "Sync failed",
     );
     await load();
   }
 
   async function removeAccount(id: string) {
-    if (!confirm("Remove this Buffer account?")) return;
+    if (!confirm(t.settings.removeConfirm)) return;
     await fetch(`/api/buffer/accounts?id=${id}`, { method: "DELETE" });
     await load();
   }
 
-  if (!settings) return <p className="muted">Loading…</p>;
+  if (!settings) return <p className="muted">{t.loading}</p>;
 
   return (
     <div className="stack">
       <div>
-        <h1 style={{ margin: 0 }}>Settings</h1>
-        <p className="muted">
-          Manage API keys (encrypted at rest) and Buffer accounts. Free Buffer
-          accounts support ~3 channels each — connect multiple accounts as needed.
-        </p>
+        <h1 style={{ margin: 0 }}>{t.settings.title}</h1>
+        <p className="muted">{t.settings.subtitle}</p>
       </div>
 
       {message ? <div className="card muted">{message}</div> : null}
 
       <form className="card stack" onSubmit={saveKeys}>
-        <h2 style={{ margin: 0 }}>Integrations & content defaults</h2>
+        <h2 style={{ margin: 0 }}>{t.settings.integrations}</h2>
         <div>
           <label className="label">
-            OpenAI API key{" "}
-            {settings.openaiConfigured ? "(configured)" : "(not set)"}
+            {t.settings.openaiKey}{" "}
+            {settings.openaiConfigured
+              ? t.settings.configured
+              : t.settings.notSet}
           </label>
           <input
             className="input"
             type="password"
-            placeholder={settings.openaiConfigured ? "•••• leave blank to keep" : "sk-..."}
+            placeholder={
+              settings.openaiConfigured ? t.settings.keepBlank : "sk-..."
+            }
             value={openaiApiKey}
             onChange={(e) => setOpenaiApiKey(e.target.value)}
           />
         </div>
         <div>
           <label className="label">
-            HeyGen API key{" "}
-            {settings.heygenConfigured ? "(configured)" : "(not set)"}
+            {t.settings.heygenKey}{" "}
+            {settings.heygenConfigured
+              ? t.settings.configured
+              : t.settings.notSet}
           </label>
           <input
             className="input"
             type="password"
-            placeholder={settings.heygenConfigured ? "•••• leave blank to keep" : "hg-..."}
+            placeholder={
+              settings.heygenConfigured ? t.settings.keepBlank : "hg-..."
+            }
             value={heygenApiKey}
             onChange={(e) => setHeygenApiKey(e.target.value)}
           />
         </div>
         <div>
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", marginBottom: 6 }}
+          >
             <label className="label" style={{ margin: 0 }}>
-              OpenAI model
+              {t.settings.openaiModel}
             </label>
             <button
               className="btn btn-secondary"
               type="button"
-              disabled={modelsLoading || (!settings.openaiConfigured && !openaiApiKey)}
+              disabled={
+                modelsLoading || (!settings.openaiConfigured && !openaiApiKey)
+              }
               onClick={async () => {
-                // If user typed a new key but hasn't saved yet, save it first so refresh works.
                 if (openaiApiKey.trim()) {
                   setLoading(true);
                   const res = await fetch("/api/settings", {
@@ -223,7 +236,9 @@ export default function SettingsPage() {
                 await loadModels();
               }}
             >
-              {modelsLoading ? "Refreshing…" : "Refresh models"}
+              {modelsLoading
+                ? t.settings.refreshingModels
+                : t.settings.refreshModels}
             </button>
           </div>
           <select
@@ -234,7 +249,7 @@ export default function SettingsPage() {
           >
             {!openaiModels.length ? (
               <option value={openaiModel || ""}>
-                {openaiModel || "Save an OpenAI key, then refresh"}
+                {openaiModel || t.settings.modelsPlaceholder}
               </option>
             ) : null}
             {openaiModels.map((id) => (
@@ -244,60 +259,61 @@ export default function SettingsPage() {
             ))}
           </select>
           {modelsError ? (
-            <div style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: 6 }}>
+            <div
+              style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: 6 }}
+            >
               {modelsError}
             </div>
           ) : openaiModels.length ? (
             <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
-              {openaiModels.length} models available
+              {tf(t.settings.modelsAvailable, { count: openaiModels.length })}
             </div>
           ) : (
             <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
-              Configure an OpenAI API key, then click Refresh models.
+              {t.settings.modelsHint}
             </div>
           )}
         </div>
         <div>
-          <label className="label">Brand / tone</label>
+          <label className="label">{t.settings.brandTone}</label>
           <textarea
             className="textarea"
             value={brandTone}
             onChange={(e) => setBrandTone(e.target.value)}
-            placeholder="Direct, practical, no fluff…"
+            placeholder={t.settings.brandPlaceholder}
           />
         </div>
         <div>
-          <label className="label">Global visual style for reels</label>
+          <label className="label">{t.settings.globalStyle}</label>
           <textarea
             className="textarea"
             value={globalStyle}
             onChange={(e) => setGlobalStyle(e.target.value)}
-            placeholder="Talking-head avatar, bold captions, fast cuts…"
+            placeholder={t.settings.stylePlaceholder}
           />
         </div>
         <button className="btn" type="submit" disabled={loading}>
-          Save settings
+          {t.settings.saveSettings}
         </button>
       </form>
 
       <form className="card stack" onSubmit={addBuffer}>
-        <h2 style={{ margin: 0 }}>Add Buffer account</h2>
+        <h2 style={{ margin: 0 }}>{t.settings.addBuffer}</h2>
         <p className="muted" style={{ margin: 0 }}>
-          Use a Buffer personal API key (Settings → API). Personal keys are required
-          for post metrics.
+          {t.settings.bufferHint}
         </p>
         <div>
-          <label className="label">Label</label>
+          <label className="label">{t.settings.label}</label>
           <input
             className="input"
             required
             value={bufferLabel}
             onChange={(e) => setBufferLabel(e.target.value)}
-            placeholder="Brand A / Personal IG"
+            placeholder={t.settings.labelPlaceholder}
           />
         </div>
         <div>
-          <label className="label">Personal API key</label>
+          <label className="label">{t.settings.personalKey}</label>
           <input
             className="input"
             type="password"
@@ -307,12 +323,12 @@ export default function SettingsPage() {
           />
         </div>
         <button className="btn" type="submit" disabled={loading}>
-          Connect & sync channels
+          {t.settings.connect}
         </button>
       </form>
 
       <div className="card stack">
-        <h2 style={{ margin: 0 }}>Connected Buffer accounts</h2>
+        <h2 style={{ margin: 0 }}>{t.settings.connected}</h2>
         {settings.bufferAccounts.map((account) => (
           <div
             key={account.id}
@@ -326,8 +342,8 @@ export default function SettingsPage() {
             <div>
               <strong>{account.label}</strong>
               <div className="muted">
-                {account.organizationName || "Organization"} ·{" "}
-                {account.channelCount} channel(s)
+                {account.organizationName || t.settings.organization} ·{" "}
+                {account.channelCount} {t.settings.channels}
               </div>
             </div>
             <div className="row">
@@ -337,20 +353,20 @@ export default function SettingsPage() {
                 onClick={() => syncAccount(account.id)}
                 disabled={loading}
               >
-                Refresh channels
+                {t.settings.refreshChannels}
               </button>
               <button
                 className="btn btn-danger"
                 type="button"
                 onClick={() => removeAccount(account.id)}
               >
-                Remove
+                {t.remove}
               </button>
             </div>
           </div>
         ))}
         {!settings.bufferAccounts.length ? (
-          <p className="muted">No Buffer accounts connected.</p>
+          <p className="muted">{t.settings.noAccounts}</p>
         ) : null}
       </div>
     </div>

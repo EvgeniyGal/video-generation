@@ -3,19 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/ideas", label: "Ideas" },
-  { href: "/drafts", label: "Drafts" },
-  { href: "/videos", label: "Videos" },
-  { href: "/schedule", label: "Schedule" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/settings", label: "Settings" },
-];
+import { useLocale } from "@/i18n/LocaleProvider";
+import type { Locale } from "@/i18n/messages";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { t, locale, setLocale, locales } = useLocale();
+
+  const nav = [
+    { href: "/dashboard", label: t.nav.dashboard },
+    { href: "/ideas", label: t.nav.ideas },
+    { href: "/drafts", label: t.nav.drafts },
+    { href: "/videos", label: t.nav.videos },
+    { href: "/schedule", label: t.nav.schedule },
+    { href: "/analytics", label: t.nav.analytics },
+    { href: "/settings", label: t.nav.settings },
+  ];
 
   return (
     <div
@@ -33,16 +36,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           position: "sticky",
           top: 0,
           height: "100vh",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        <div style={{ marginBottom: "1.5rem" }}>
-          <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>Reels Studio</div>
+        <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{t.appName}</div>
           <div className="muted" style={{ fontSize: "0.8rem" }}>
-            Multi-Buffer pipeline
+            {t.appTagline}
           </div>
         </div>
-        <nav className="stack" style={{ gap: "0.35rem" }}>
-          {NAV.map((item) => {
+
+        <nav className="stack" style={{ gap: "0.35rem", flex: 1 }}>
+          {nav.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link
@@ -62,13 +68,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+
         <button
           className="btn btn-secondary"
-          style={{ marginTop: "2rem", width: "100%" }}
+          style={{ marginTop: "1.5rem", width: "100%" }}
           onClick={() => signOut({ callbackUrl: "/login" })}
         >
-          Sign out
+          {t.signOut}
         </button>
+
+        <div style={{ marginTop: "0.85rem" }}>
+          <div className="label" style={{ marginBottom: 6 }}>
+            {t.language}
+          </div>
+          <div
+            role="group"
+            aria-label={t.language}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 6,
+            }}
+          >
+            {locales.map((item) => {
+              const active = locale === item.code;
+              return (
+                <button
+                  key={item.code}
+                  type="button"
+                  className={active ? "btn" : "btn btn-secondary"}
+                  style={{
+                    padding: "0.4rem 0.5rem",
+                    fontSize: "0.85rem",
+                    width: "100%",
+                  }}
+                  aria-pressed={active}
+                  onClick={() => setLocale(item.code as Locale)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </aside>
       <main style={{ padding: "1.5rem 2rem", maxWidth: 1200 }}>{children}</main>
     </div>
