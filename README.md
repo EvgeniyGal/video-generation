@@ -15,14 +15,16 @@ Personal tool to draft viral reel content (OpenAI), generate videos on demand (H
 1. Use your Supabase project (shared DB is fine). All app tables are prefixed with `vc_` so they won’t touch other apps’ tables.
 2. Create a **public** Storage bucket named `videos` (or set `SUPABASE_VIDEOS_BUCKET`). Prefer a dedicated bucket for this app.
 3. Copy `.env.example` → `.env` and fill values.
-4. Install and push schema (`vc_*` tables only):
+4. Install and apply schema + RLS (`vc_*` tables only):
 
 ```bash
 npm install
-npm run db:push
+npm run db:migrate
 ```
 
-Or run [`drizzle/0000_init.sql`](drizzle/0000_init.sql) in the Supabase SQL editor.
+Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000` → `0001` → `0002`).
+
+**RLS:** All `vc_*` tables have Row Level Security enabled with no policies for `anon` / `authenticated`. That clears Supabase’s “RLS disabled” warning and blocks accidental PostgREST access. This app talks to Postgres via Drizzle (`DIRECT_URL` / `DATABASE_URL`) and Storage via the **service role** — both bypass RLS. Do not add open `anon` policies on these tables.
 
 5. Dev (Next only — cron jobs run with the custom server):
 

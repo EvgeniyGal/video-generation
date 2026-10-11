@@ -23,7 +23,11 @@ try {
   await sql`select 1 as ok`;
   console.log("Connection OK");
 
-  const files = ["drizzle/0000_init.sql", "drizzle/0001_ideas_tone_style.sql"];
+  const files = [
+    "drizzle/0000_init.sql",
+    "drizzle/0001_ideas_tone_style.sql",
+    "drizzle/0002_enable_rls.sql",
+  ];
   for (const relative of files) {
     const file = resolve(relative);
     const ddl = readFileSync(file, "utf8");
