@@ -4,23 +4,43 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:server": "tsx watch server.ts",
     "build": "next build",
     "start": "next start",
+    "start:server": "tsx server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "hash-password": "node scripts/hash-password.mjs",
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "bcryptjs": "^3.0.3",
+    "date-fns": "^4.4.0",
+    "drizzle-orm": "^0.45.4",
     "next": "16.4.0",
+    "next-auth": "^4.24.15",
+    "node-cron": "^4.6.0",
+    "openai": "^7.32.0",
+    "postgres": "^3.4.9",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^18.0.7",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

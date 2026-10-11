@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reels Studio
 
-## Getting Started
+Personal tool to draft viral reel content (OpenAI), generate videos on demand (HeyGen Video Agent), schedule to multiple Buffer accounts, and sync post metrics daily.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) + custom Node server (`server.ts`)
+- NextAuth (credentials, single operator)
+- Supabase Postgres + Storage
+- Drizzle ORM
+- Docker / docker-compose
+
+## Setup
+
+1. Use your Supabase project (shared DB is fine). All app tables are prefixed with `vc_` so they won’t touch other apps’ tables.
+2. Create a **public** Storage bucket named `videos` (or set `SUPABASE_VIDEOS_BUCKET`). Prefer a dedicated bucket for this app.
+3. Copy `.env.example` → `.env` and fill values.
+4. Install and push schema (`vc_*` tables only):
+
+```bash
+npm install
+npm run db:push
+```
+
+Or run [`drizzle/0000_init.sql`](drizzle/0000_init.sql) in the Supabase SQL editor.
+
+5. Dev (Next only — cron jobs run with the custom server):
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or run the custom server (includes HeyGen poll + daily metrics cron):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run start:server
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+6. Docker:
 
-## Learn More
+```bash
+docker compose up --build
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Workflow
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Settings** — save OpenAI / HeyGen keys; connect Buffer personal API keys (one per free account, ~3 channels each).
+2. **Ideas** — add many reel ideas; **Prepare content** (OpenAI only).
+3. **Drafts** — edit, pick voice, approve; **Generate videos** explicitly.
+4. **Videos** — wait for HeyGen; MP4 is re-hosted to public Supabase Storage.
+5. **Schedule** — choose Buffer account channel → queue or custom time.
+6. **Analytics** — daily 06:00 UTC sync (or Sync now).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Buffer notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Metrics require a **personal API key** (`insightsRead`); OAuth app clients cannot read metrics.
+- Video URLs must be public, HTTPS, and non-expiring until publish time.
