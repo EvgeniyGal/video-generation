@@ -23,10 +23,39 @@ export default function SettingsPage() {
   const [brandTone, setBrandTone] = useState("");
   const [globalStyle, setGlobalStyle] = useState("");
   const [openaiModel, setOpenaiModel] = useState("gpt-4.1-mini");
+  const [openaiModels, setOpenaiModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const [bufferLabel, setBufferLabel] = useState("");
   const [bufferApiKey, setBufferApiKey] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const loadModels = useCallback(async () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      const res = await fetch("/api/openai/models");
+      const data = await res.json();
+      if (!res.ok) {
+        setOpenaiModels([]);
+        setModelsError(data.error || "Failed to load models");
+        return;
+      }
+      const models: string[] = data.models ?? [];
+      setOpenaiModels(models);
+      setOpenaiModel((current) => {
+        if (current && models.includes(current)) return current;
+        if (models.includes("gpt-4.1-mini")) return "gpt-4.1-mini";
+        return models[0] ?? current;
+      });
+    } catch (err) {
+      setOpenaiModels([]);
+      setModelsError(err instanceof Error ? err.message : "Failed to load models");
+    } finally {
+      setModelsLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/settings");
@@ -35,7 +64,14 @@ export default function SettingsPage() {
     setBrandTone(data.brandTone ?? "");
     setGlobalStyle(data.globalStyle ?? "");
     setOpenaiModel(data.openaiModel ?? "gpt-4.1-mini");
-  }, []);
+    if (data.openaiConfigured) {
+      // refresh model list after settings load
+      void loadModels();
+    } else {
+      setOpenaiModels([]);
+      setModelsError(null);
+    }
+  }, [loadModels]);
 
   useEffect(() => {
     load();
@@ -157,12 +193,69 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="label">OpenAI model</label>
-          <input
-            className="input"
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+            <label className="label" style={{ margin: 0 }}>
+              OpenAI model
+            </label>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={modelsLoading || (!settings.openaiConfigured && !openaiApiKey)}
+              onClick={async () => {
+                // If user typed a new key but hasn't saved yet, save it first so refresh works.
+                if (openaiApiKey.trim()) {
+                  setLoading(true);
+                  const res = await fetch("/api/settings", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ openaiApiKey }),
+                  });
+                  setLoading(false);
+                  if (!res.ok) {
+                    const data = await res.json();
+                    setModelsError(data.error || "Could not save API key");
+                    return;
+                  }
+                  setOpenaiApiKey("");
+                  await load();
+                  return;
+                }
+                await loadModels();
+              }}
+            >
+              {modelsLoading ? "Refreshing…" : "Refresh models"}
+            </button>
+          </div>
+          <select
+            className="select"
             value={openaiModel}
             onChange={(e) => setOpenaiModel(e.target.value)}
-          />
+            disabled={!openaiModels.length && !openaiModel}
+          >
+            {!openaiModels.length ? (
+              <option value={openaiModel || ""}>
+                {openaiModel || "Save an OpenAI key, then refresh"}
+              </option>
+            ) : null}
+            {openaiModels.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          {modelsError ? (
+            <div style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: 6 }}>
+              {modelsError}
+            </div>
+          ) : openaiModels.length ? (
+            <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+              {openaiModels.length} models available
+            </div>
+          ) : (
+            <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+              Configure an OpenAI API key, then click Refresh models.
+            </div>
+          )}
         </div>
         <div>
           <label className="label">Brand / tone</label>

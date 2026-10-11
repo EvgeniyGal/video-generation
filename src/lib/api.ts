@@ -8,17 +8,28 @@ export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function withAuth<T>(
-  fn: () => Promise<T>,
-): Promise<NextResponse | T> {
+export function getErrorMessage(err: unknown, fallback = "Unknown error") {
+  if (err instanceof Error) {
+    const cause = (err as Error & { cause?: unknown }).cause;
+    if (cause instanceof Error && cause.message) {
+      return `${err.message}: ${cause.message}`;
+    }
+    return err.message;
+  }
+  return fallback;
+}
+
+/** Wrap route handlers so failures always return JSON (never an empty body). */
+export async function apiHandler(
+  fn: () => Promise<NextResponse>,
+): Promise<NextResponse> {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return jsonError("Unauthorized", 401);
     }
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error(err);
-    return jsonError(message, 500);
+    return jsonError(getErrorMessage(err), 500);
   }
 }

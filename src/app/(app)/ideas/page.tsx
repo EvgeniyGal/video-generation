@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { fetchJson } from "@/lib/fetch-json";
 
 type Idea = {
   id: string;
@@ -18,9 +19,12 @@ export default function IdeasPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/ideas");
-    const data = await res.json();
-    setIdeas(data.ideas ?? []);
+    try {
+      const data = await fetchJson<{ ideas: Idea[] }>("/api/ideas");
+      setIdeas(data.ideas ?? []);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to load ideas");
+    }
   }, []);
 
   useEffect(() => {

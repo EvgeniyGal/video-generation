@@ -5,34 +5,28 @@ import { reelDrafts, videos } from "@/server/db/schema";
 import { getIntegrationKey } from "@/server/integrations/credentials";
 import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
-import { jsonError, jsonOk } from "@/lib/api";
+import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
 export async function GET() {
-  try {
+  return apiHandler(async () => {
     await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
+    const rows = await db.query.videos.findMany({
+      orderBy: [desc(videos.createdAt)],
+    });
+    const drafts = await db.query.reelDrafts.findMany();
 
-  const rows = await db.query.videos.findMany({
-    orderBy: [desc(videos.createdAt)],
-  });
-  const drafts = await db.query.reelDrafts.findMany();
-
-  return jsonOk({
-    videos: rows.map((v) => ({
-      ...v,
-      draft: drafts.find((d) => d.id === v.reelDraftId) ?? null,
-    })),
+    return jsonOk({
+      videos: rows.map((v) => ({
+        ...v,
+        draft: drafts.find((d) => d.id === v.reelDraftId) ?? null,
+      })),
+    });
   });
 }
 
 export async function POST(request: Request) {
-  try {
-    await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
+  return apiHandler(async () => {
+  await requireSession();
 
   const body = await request.json();
   const draftIds: string[] = Array.isArray(body.draftIds)
@@ -112,4 +106,5 @@ export async function POST(request: Request) {
   }
 
   return jsonOk({ videos: created, errors });
+  });
 }

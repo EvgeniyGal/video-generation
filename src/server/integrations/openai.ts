@@ -80,3 +80,31 @@ export function buildHeyGenPrompt(content: ReelContent): string {
     `Keep pacing energetic and retention-focused for Reels/TikTok.`,
   ].join("\n\n");
 }
+
+/** Models useful for chat / structured content generation. */
+const CHAT_MODEL_HINT =
+  /^(gpt-|o[1-9]|chatgpt-|ft:gpt-)/i;
+
+export async function listChatModels(apiKey: string): Promise<string[]> {
+  const client = new OpenAI({ apiKey });
+  const page = await client.models.list();
+  const ids = page.data
+    .map((m) => m.id)
+    .filter((id) => CHAT_MODEL_HINT.test(id))
+    .sort((a, b) => a.localeCompare(b));
+
+  // Prefer newer gpt / o-series first in UI by reversing alpha within groups
+  return ids.sort((a, b) => {
+    const rank = (id: string) => {
+      if (id.startsWith("gpt-5")) return 0;
+      if (id.startsWith("gpt-4.1")) return 1;
+      if (id.startsWith("gpt-4o")) return 2;
+      if (id.startsWith("o3") || id.startsWith("o4") || id.startsWith("o1")) return 3;
+      if (id.startsWith("gpt-4")) return 4;
+      if (id.startsWith("gpt-3.5")) return 9;
+      return 5;
+    };
+    const d = rank(a) - rank(b);
+    return d !== 0 ? d : a.localeCompare(b);
+  });
+}

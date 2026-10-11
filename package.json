@@ -10,6 +10,7 @@
     "start:server": "tsx server.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:migrate": "node scripts/db-migrate.mjs",
     "db:studio": "drizzle-kit studio",
     "hash-password": "node scripts/hash-password.mjs",
     "lint": "eslint"

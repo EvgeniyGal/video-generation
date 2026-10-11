@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { fetchJson } from "@/lib/fetch-json";
 
 type Stats = {
   ideas: number;
@@ -12,12 +13,12 @@ type Stats = {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => r.json())
+    fetchJson<Stats>("/api/dashboard")
       .then(setStats)
-      .catch(console.error);
+      .catch((err: Error) => setError(err.message));
   }, []);
 
   return (
@@ -27,7 +28,15 @@ export default function DashboardPage() {
         <p className="muted">Pipeline overview for reels content and publishing.</p>
       </div>
 
-      {!stats ? (
+      {error ? (
+        <div className="card" style={{ color: "var(--danger)" }}>
+          {error}
+          <div className="muted" style={{ marginTop: 8 }}>
+            If this mentions CONNECT_TIMEOUT, check that Postgres port 5542 (DIRECT_URL)
+            is reachable, then run <code>npm run db:push</code>.
+          </div>
+        </div>
+      ) : !stats ? (
         <p className="muted">Loading…</p>
       ) : (
         <div

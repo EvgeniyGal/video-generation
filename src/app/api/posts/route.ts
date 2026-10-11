@@ -9,28 +9,21 @@ import {
 } from "@/server/db/schema";
 import { getBufferAccountApiKey } from "@/server/integrations/credentials";
 import { createVideoPost } from "@/server/integrations/buffer";
-import { jsonError, jsonOk } from "@/lib/api";
+import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
 export async function GET() {
-  try {
+  return apiHandler(async () => {
     await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
-
-  const posts = await db.query.scheduledPosts.findMany({
-    orderBy: [desc(scheduledPosts.createdAt)],
+    const posts = await db.query.scheduledPosts.findMany({
+      orderBy: [desc(scheduledPosts.createdAt)],
+    });
+    return jsonOk({ posts });
   });
-
-  return jsonOk({ posts });
 }
 
 export async function POST(request: Request) {
-  try {
-    await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
+  return apiHandler(async () => {
+  await requireSession();
 
   const body = await request.json();
   const videoId = String(body.videoId ?? "");
@@ -104,4 +97,5 @@ export async function POST(request: Request) {
       400,
     );
   }
+  });
 }

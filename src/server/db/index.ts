@@ -6,14 +6,22 @@ type Db = PostgresJsDatabase<typeof schema>;
 
 const globalForDb = globalThis as unknown as { __reelsDb?: Db };
 
+/** Prefer DIRECT_URL for the long-lived Node server; pooled/transaction ports often time out. */
+function getConnectionString() {
+  return process.env.DIRECT_URL || process.env.DATABASE_URL;
+}
+
 function createDb(): Db {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = getConnectionString();
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
+    throw new Error("DATABASE_URL or DIRECT_URL is not set");
   }
   const client = postgres(connectionString, {
     prepare: false,
     max: 10,
+    connect_timeout: 15,
+    // Self-hosted Supavisor on these ports speaks plain Postgres (not TLS).
+    ssl: false,
   });
   return drizzle(client, { schema });
 }

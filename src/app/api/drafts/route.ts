@@ -7,27 +7,21 @@ import {
   getSetting,
 } from "@/server/integrations/credentials";
 import { generateReelContent } from "@/server/integrations/openai";
-import { jsonError, jsonOk } from "@/lib/api";
+import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
 export async function GET() {
-  try {
+  return apiHandler(async () => {
     await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
-
-  const drafts = await db.query.reelDrafts.findMany({
-    orderBy: [desc(reelDrafts.createdAt)],
+    const drafts = await db.query.reelDrafts.findMany({
+      orderBy: [desc(reelDrafts.createdAt)],
+    });
+    return jsonOk({ drafts });
   });
-  return jsonOk({ drafts });
 }
 
 export async function POST(request: Request) {
-  try {
-    await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
+  return apiHandler(async () => {
+  await requireSession();
 
   const body = await request.json();
   const ideaIds: string[] = Array.isArray(body.ideaIds)
@@ -90,61 +84,56 @@ export async function POST(request: Request) {
   }
 
   return jsonOk({ drafts: created, errors });
+  });
 }
 
 export async function PATCH(request: Request) {
-  try {
+  return apiHandler(async () => {
     await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
+    const body = await request.json();
+    const id = String(body.id ?? "");
+    if (!id) return jsonError("id is required");
 
-  const body = await request.json();
-  const id = String(body.id ?? "");
-  if (!id) return jsonError("id is required");
+    const updates: Partial<typeof reelDrafts.$inferInsert> = {
+      updatedAt: new Date(),
+    };
 
-  const updates: Partial<typeof reelDrafts.$inferInsert> = {
-    updatedAt: new Date(),
-  };
+    if (body.hook !== undefined) updates.hook = String(body.hook);
+    if (body.script !== undefined) updates.script = String(body.script);
+    if (body.caption !== undefined) updates.caption = String(body.caption);
+    if (body.cta !== undefined) updates.cta = String(body.cta);
+    if (body.visualStyle !== undefined) updates.visualStyle = String(body.visualStyle);
+    if (body.status !== undefined) updates.status = String(body.status);
+    if (body.voiceId !== undefined) updates.voiceId = body.voiceId ? String(body.voiceId) : null;
+    if (body.avatarId !== undefined)
+      updates.avatarId = body.avatarId ? String(body.avatarId) : null;
+    if (body.styleId !== undefined)
+      updates.styleId = body.styleId ? String(body.styleId) : null;
+    if (Array.isArray(body.hashtags)) {
+      updates.hashtags = body.hashtags.map(String);
+    }
+    if (body.suggestedDurationSec !== undefined) {
+      updates.suggestedDurationSec = Number(body.suggestedDurationSec);
+    }
 
-  if (body.hook !== undefined) updates.hook = String(body.hook);
-  if (body.script !== undefined) updates.script = String(body.script);
-  if (body.caption !== undefined) updates.caption = String(body.caption);
-  if (body.cta !== undefined) updates.cta = String(body.cta);
-  if (body.visualStyle !== undefined) updates.visualStyle = String(body.visualStyle);
-  if (body.status !== undefined) updates.status = String(body.status);
-  if (body.voiceId !== undefined) updates.voiceId = body.voiceId ? String(body.voiceId) : null;
-  if (body.avatarId !== undefined)
-    updates.avatarId = body.avatarId ? String(body.avatarId) : null;
-  if (body.styleId !== undefined)
-    updates.styleId = body.styleId ? String(body.styleId) : null;
-  if (Array.isArray(body.hashtags)) {
-    updates.hashtags = body.hashtags.map(String);
-  }
-  if (body.suggestedDurationSec !== undefined) {
-    updates.suggestedDurationSec = Number(body.suggestedDurationSec);
-  }
+    const [draft] = await db
+      .update(reelDrafts)
+      .set(updates)
+      .where(eq(reelDrafts.id, id))
+      .returning();
 
-  const [draft] = await db
-    .update(reelDrafts)
-    .set(updates)
-    .where(eq(reelDrafts.id, id))
-    .returning();
-
-  return jsonOk({ draft });
+    return jsonOk({ draft });
+  });
 }
 
 export async function DELETE(request: Request) {
-  try {
+  return apiHandler(async () => {
     await requireSession();
-  } catch {
-    return jsonError("Unauthorized", 401);
-  }
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id) return jsonError("id required");
 
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-  if (!id) return jsonError("id required");
-
-  await db.delete(reelDrafts).where(eq(reelDrafts.id, id));
-  return jsonOk({ ok: true });
+    await db.delete(reelDrafts).where(eq(reelDrafts.id, id));
+    return jsonOk({ ok: true });
+  });
 }
