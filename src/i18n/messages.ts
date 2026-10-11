@@ -59,9 +59,14 @@ const en = {
   ideas: {
     title: "Ideas",
     subtitle:
-      "Capture reel ideas. Preparing content uses OpenAI only — videos are never generated automatically.",
+      "Capture reel ideas. Set brand tone and visual style for each idea — used when preparing content with OpenAI. Videos are never generated automatically.",
     addLabel: "Add ideas (one per line)",
     placeholder: "Why cold emails fail in 2026\n3 lessons from shipping weekly",
+    brandTone: "Brand / tone",
+    brandPlaceholder: "Direct, practical, no fluff…",
+    visualStyle: "Visual style for reels",
+    stylePlaceholder: "Talking-head avatar, bold captions, fast cuts…",
+    styleHint: "Applied to every idea you add in this batch. You can edit each idea later.",
     add: "Add ideas",
     prepare: "Prepare content",
     idea: "Idea",
@@ -69,6 +74,7 @@ const en = {
     added: "Added {count} idea(s)",
     prepared: "Prepared {count} draft(s)",
     errors: ", {count} error(s)",
+    saveIdea: "Save",
   },
 
   drafts: {
@@ -159,10 +165,6 @@ const en = {
     modelsAvailable: "{count} models available",
     modelsHint: "Configure an OpenAI API key, then click Refresh models.",
     modelsPlaceholder: "Save an OpenAI key, then refresh",
-    brandTone: "Brand / tone",
-    brandPlaceholder: "Direct, practical, no fluff…",
-    globalStyle: "Global visual style for reels",
-    stylePlaceholder: "Talking-head avatar, bold captions, fast cuts…",
     saveSettings: "Save settings",
     saved: "Settings saved",
     addBuffer: "Add Buffer account",
@@ -243,9 +245,14 @@ const ua: Messages = {
   ideas: {
     title: "Ідеї",
     subtitle:
-      "Збирайте ідеї для reels. Підготовка контенту лише через OpenAI — відео ніколи не генеруються автоматично.",
+      "Збирайте ідеї для reels. Тон бренду та візуальний стиль задаються для кожної ідеї — вони використовуються під час підготовки контенту в OpenAI. Відео ніколи не генеруються автоматично.",
     addLabel: "Додати ідеї (по одній в рядок)",
     placeholder: "Чому холодні листи не працюють у 2026\n3 уроки з щотижневих релізів",
+    brandTone: "Тон бренду",
+    brandPlaceholder: "Прямо, практично, без води…",
+    visualStyle: "Візуальний стиль для reels",
+    stylePlaceholder: "Аватар, жирні субтитри, швидкий монтаж…",
+    styleHint: "Застосовується до всіх ідей у цій партії. Пізніше можна змінити для кожної окремо.",
     add: "Додати ідеї",
     prepare: "Підготувати контент",
     idea: "Ідея",
@@ -253,6 +260,7 @@ const ua: Messages = {
     added: "Додано ідей: {count}",
     prepared: "Підготовлено чернеток: {count}",
     errors: ", помилок: {count}",
+    saveIdea: "Зберегти",
   },
 
   drafts: {
@@ -342,10 +350,6 @@ const ua: Messages = {
     modelsAvailable: "Доступно моделей: {count}",
     modelsHint: "Додайте API-ключ OpenAI, потім натисніть «Оновити моделі».",
     modelsPlaceholder: "Збережіть ключ OpenAI, потім оновіть",
-    brandTone: "Тон бренду",
-    brandPlaceholder: "Прямо, практично, без води…",
-    globalStyle: "Глобальний візуальний стиль для reels",
-    stylePlaceholder: "Аватар, жирні субтитри, швидкий монтаж…",
     saveSettings: "Зберегти налаштування",
     saved: "Налаштування збережено",
     addBuffer: "Додати акаунт Buffer",

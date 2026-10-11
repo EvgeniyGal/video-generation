@@ -23,10 +23,13 @@ try {
   await sql`select 1 as ok`;
   console.log("Connection OK");
 
-  const file = resolve("drizzle/0000_init.sql");
-  const ddl = readFileSync(file, "utf8");
-  await sql.unsafe(ddl);
-  console.log("Applied", file);
+  const files = ["drizzle/0000_init.sql", "drizzle/0001_ideas_tone_style.sql"];
+  for (const relative of files) {
+    const file = resolve(relative);
+    const ddl = readFileSync(file, "utf8");
+    await sql.unsafe(ddl);
+    console.log("Applied", file);
+  }
 
   const tables = await sql`
     select tablename

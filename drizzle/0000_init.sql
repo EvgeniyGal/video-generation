@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS "vc_ideas" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "title" text,
   "content" text NOT NULL,
+  "brand_tone" text DEFAULT '' NOT NULL,
+  "visual_style" text DEFAULT '' NOT NULL,
   "status" text DEFAULT 'new' NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz DEFAULT now() NOT NULL

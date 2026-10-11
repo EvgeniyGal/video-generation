@@ -19,6 +19,9 @@ export async function POST(request: Request) {
     await requireSession();
     const body = await request.json();
 
+    const brandTone = String(body.brandTone ?? "").trim();
+    const visualStyle = String(body.visualStyle ?? "").trim();
+
     if (Array.isArray(body.ideas)) {
       const texts = body.ideas
         .map((t: unknown) => String(t ?? "").trim())
@@ -31,6 +34,8 @@ export async function POST(request: Request) {
           texts.map((content: string) => ({
             content,
             title: content.slice(0, 80),
+            brandTone,
+            visualStyle,
           })),
         )
         .returning();
@@ -45,6 +50,8 @@ export async function POST(request: Request) {
       .values({
         content,
         title: String(body.title ?? content.slice(0, 80)),
+        brandTone,
+        visualStyle,
       })
       .returning();
 
@@ -80,11 +87,16 @@ export async function PATCH(request: Request) {
       content?: string;
       title?: string;
       status?: string;
+      brandTone?: string;
+      visualStyle?: string;
       updatedAt: Date;
     } = { updatedAt: new Date() };
     if (body.content !== undefined) patch.content = String(body.content);
     if (body.title !== undefined) patch.title = String(body.title);
     if (body.status !== undefined) patch.status = String(body.status);
+    if (body.brandTone !== undefined) patch.brandTone = String(body.brandTone);
+    if (body.visualStyle !== undefined)
+      patch.visualStyle = String(body.visualStyle);
 
     const [row] = await db
       .update(ideas)

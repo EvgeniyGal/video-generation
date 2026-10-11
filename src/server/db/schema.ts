@@ -76,6 +76,8 @@ export const ideas = pgTable("vc_ideas", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: text("title"),
   content: text("content").notNull(),
+  brandTone: text("brand_tone").notNull().default(""),
+  visualStyle: text("visual_style").notNull().default(""),
   status: text("status").notNull().default("new"), // new | prepared | archived
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -6,8 +6,6 @@ import { useLocale } from "@/i18n/LocaleProvider";
 type Settings = {
   openaiConfigured: boolean;
   heygenConfigured: boolean;
-  brandTone: string;
-  globalStyle: string;
   openaiModel: string;
   bufferAccounts: Array<{
     id: string;
@@ -22,8 +20,6 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [heygenApiKey, setHeygenApiKey] = useState("");
-  const [brandTone, setBrandTone] = useState("");
-  const [globalStyle, setGlobalStyle] = useState("");
   const [openaiModel, setOpenaiModel] = useState("gpt-4.1-mini");
   const [openaiModels, setOpenaiModels] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -63,8 +59,6 @@ export default function SettingsPage() {
     const res = await fetch("/api/settings");
     const data = await res.json();
     setSettings(data);
-    setBrandTone(data.brandTone ?? "");
-    setGlobalStyle(data.globalStyle ?? "");
     setOpenaiModel(data.openaiModel ?? "gpt-4.1-mini");
     if (data.openaiConfigured) {
       void loadModels();
@@ -88,8 +82,6 @@ export default function SettingsPage() {
       body: JSON.stringify({
         openaiApiKey: openaiApiKey || undefined,
         heygenApiKey: heygenApiKey || undefined,
-        brandTone,
-        globalStyle,
         openaiModel,
       }),
     });
@@ -273,24 +265,6 @@ export default function SettingsPage() {
               {t.settings.modelsHint}
             </div>
           )}
-        </div>
-        <div>
-          <label className="label">{t.settings.brandTone}</label>
-          <textarea
-            className="textarea"
-            value={brandTone}
-            onChange={(e) => setBrandTone(e.target.value)}
-            placeholder={t.settings.brandPlaceholder}
-          />
-        </div>
-        <div>
-          <label className="label">{t.settings.globalStyle}</label>
-          <textarea
-            className="textarea"
-            value={globalStyle}
-            onChange={(e) => setGlobalStyle(e.target.value)}
-            placeholder={t.settings.stylePlaceholder}
-          />
         </div>
         <button className="btn" type="submit" disabled={loading}>
           {t.settings.saveSettings}

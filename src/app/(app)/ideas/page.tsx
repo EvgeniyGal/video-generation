@@ -8,6 +8,8 @@ type Idea = {
   id: string;
   title: string | null;
   content: string;
+  brandTone: string;
+  visualStyle: string;
   status: string;
   createdAt: string;
 };
@@ -17,8 +19,13 @@ export default function IdeasPage() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkText, setBulkText] = useState("");
+  const [brandTone, setBrandTone] = useState("");
+  const [visualStyle, setVisualStyle] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTone, setEditTone] = useState("");
+  const [editStyle, setEditStyle] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +52,11 @@ export default function IdeasPage() {
     const res = await fetch("/api/ideas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ideas: lines }),
+      body: JSON.stringify({
+        ideas: lines,
+        brandTone,
+        visualStyle,
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -92,6 +103,34 @@ export default function IdeasPage() {
     });
   }
 
+  function startEdit(idea: Idea) {
+    setEditingId(idea.id);
+    setEditTone(idea.brandTone ?? "");
+    setEditStyle(idea.visualStyle ?? "");
+  }
+
+  async function saveIdea(id: string) {
+    setLoading(true);
+    setMessage(null);
+    const res = await fetch("/api/ideas", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        brandTone: editTone,
+        visualStyle: editStyle,
+      }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      const data = await res.json();
+      setMessage(data.error || "Save failed");
+      return;
+    }
+    setEditingId(null);
+    await load();
+  }
+
   return (
     <div className="stack">
       <div>
@@ -108,6 +147,27 @@ export default function IdeasPage() {
             onChange={(e) => setBulkText(e.target.value)}
             placeholder={t.ideas.placeholder}
           />
+        </div>
+        <div>
+          <label className="label">{t.ideas.brandTone}</label>
+          <textarea
+            className="textarea"
+            value={brandTone}
+            onChange={(e) => setBrandTone(e.target.value)}
+            placeholder={t.ideas.brandPlaceholder}
+          />
+        </div>
+        <div>
+          <label className="label">{t.ideas.visualStyle}</label>
+          <textarea
+            className="textarea"
+            value={visualStyle}
+            onChange={(e) => setVisualStyle(e.target.value)}
+            placeholder={t.ideas.stylePlaceholder}
+          />
+          <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+            {t.ideas.styleHint}
+          </div>
         </div>
         <div className="row">
           <button className="btn" type="submit" disabled={loading}>
@@ -131,35 +191,94 @@ export default function IdeasPage() {
             <tr>
               <th />
               <th>{t.ideas.idea}</th>
+              <th>{t.ideas.brandTone}</th>
+              <th>{t.ideas.visualStyle}</th>
               <th>{t.status}</th>
-              <th>{t.created}</th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            {ideas.map((idea) => (
-              <tr key={idea.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(idea.id)}
-                    onChange={() => toggle(idea.id)}
-                  />
-                </td>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{idea.title}</div>
-                  <div className="muted" style={{ whiteSpace: "pre-wrap" }}>
-                    {idea.content}
-                  </div>
-                </td>
-                <td>{idea.status}</td>
-                <td className="muted">
-                  {new Date(idea.createdAt).toLocaleString()}
-                </td>
-              </tr>
-            ))}
+            {ideas.map((idea) => {
+              const editing = editingId === idea.id;
+              return (
+                <tr key={idea.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(idea.id)}
+                      onChange={() => toggle(idea.id)}
+                    />
+                  </td>
+                  <td style={{ maxWidth: 240 }}>
+                    <div style={{ fontWeight: 600 }}>{idea.title}</div>
+                    <div className="muted" style={{ whiteSpace: "pre-wrap" }}>
+                      {idea.content}
+                    </div>
+                  </td>
+                  <td style={{ minWidth: 160 }}>
+                    {editing ? (
+                      <textarea
+                        className="textarea"
+                        style={{ minHeight: 72 }}
+                        value={editTone}
+                        onChange={(e) => setEditTone(e.target.value)}
+                      />
+                    ) : (
+                      <div className="muted" style={{ whiteSpace: "pre-wrap" }}>
+                        {idea.brandTone || "—"}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ minWidth: 160 }}>
+                    {editing ? (
+                      <textarea
+                        className="textarea"
+                        style={{ minHeight: 72 }}
+                        value={editStyle}
+                        onChange={(e) => setEditStyle(e.target.value)}
+                      />
+                    ) : (
+                      <div className="muted" style={{ whiteSpace: "pre-wrap" }}>
+                        {idea.visualStyle || "—"}
+                      </div>
+                    )}
+                  </td>
+                  <td>{idea.status}</td>
+                  <td>
+                    {editing ? (
+                      <div className="row">
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={loading}
+                          onClick={() => saveIdea(idea.id)}
+                        >
+                          {t.ideas.saveIdea}
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                        >
+                          {t.cancel}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => startEdit(idea)}
+                      >
+                        {t.edit}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {!ideas.length ? (
               <tr>
-                <td colSpan={4} className="muted">
+                <td colSpan={6} className="muted">
                   {t.ideas.empty}
                 </td>
               </tr>

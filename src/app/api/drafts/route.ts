@@ -33,8 +33,8 @@ export async function POST(request: Request) {
   const apiKey = await getIntegrationKey("openai");
   if (!apiKey) return jsonError("OpenAI API key not configured", 400);
 
-  const brandTone = await getSetting("brand_tone");
-  const globalStyle = await getSetting("global_style");
+  const defaultBrandTone = await getSetting("brand_tone");
+  const defaultVisualStyle = await getSetting("global_style");
   const model = await getSetting("openai_model", "gpt-4.1-mini");
 
   const selectedIdeas = await db.query.ideas.findMany({
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
       const content = await generateReelContent({
         apiKey,
         idea: idea.content,
-        brandTone,
-        globalStyle,
+        brandTone: idea.brandTone || defaultBrandTone,
+        globalStyle: idea.visualStyle || defaultVisualStyle,
         model,
       });
 
