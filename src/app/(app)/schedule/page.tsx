@@ -8,7 +8,13 @@ import {
   useState,
 } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { buildCadenceSlots, formatLocalDueAt } from "@/lib/cadence";
+import {
+  buildCadenceSlots,
+  datetimeLocalInZoneToIso,
+  formatLocalDueAt,
+  guessBrowserTimeZone,
+  listTimeZones,
+} from "@/lib/cadence";
 import { defaultPostText, type PublishStatus } from "@/lib/publish-status";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -48,17 +54,24 @@ type PublishFilter = "unposted" | "scheduled" | "posted" | "";
 type SortKey = "caption" | "publishStatus" | "createdAt";
 type SortDir = "asc" | "desc";
 
-function todayLocalYmd(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 function toDatetimeLocalValue(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultCadenceStartAt(): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(0);
+  d.setHours(21);
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+  return toDatetimeLocalValue(d);
+}
+
+function splitDatetimeLocal(value: string): { date: string; time: string } | null {
+  const m = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (!m) return null;
+  return { date: m[1], time: m[2] };
 }
 
 export default function SchedulePage() {
@@ -71,14 +84,35 @@ export default function SchedulePage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [channelId, setChannelId] = useState("");
+  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(
+    new Set(),
+  );
   const [text, setText] = useState("");
   const [dueAtLocal, setDueAtLocal] = useState(toDatetimeLocalValue());
-  const [startDate, setStartDate] = useState(todayLocalYmd());
+  const [timeZone, setTimeZone] = useState(guessBrowserTimeZone);
+  const [startAtLocal, setStartAtLocal] = useState(defaultCadenceStartAt);
   const [postsPerDay, setPostsPerDay] = useState<1 | 2 | 3>(1);
-  const [slotTimes, setSlotTimes] = useState<string[]>(["21:00"]);
+  const [extraSlotTimes, setExtraSlotTimes] = useState<string[]>([
+    "09:00",
+    "15:00",
+  ]);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const timeZones = useMemo(() => listTimeZones(), []);
+
+  const cadenceTimesOfDay = useMemo(() => {
+    const split = splitDatetimeLocal(startAtLocal);
+    if (!split) return [] as string[];
+    const times = [split.time];
+    if (postsPerDay >= 2) times.push(extraSlotTimes[0] || "09:00");
+    if (postsPerDay >= 3) times.push(extraSlotTimes[1] || "15:00");
+    return times;
+  }, [startAtLocal, postsPerDay, extraSlotTimes]);
+
+  const cadenceStartDate = useMemo(
+    () => splitDatetimeLocal(startAtLocal)?.date ?? "",
+    [startAtLocal],
+  );
 
   const load = useCallback(async () => {
     const [vRes, cRes, pRes] = await Promise.all([
@@ -100,18 +134,6 @@ export default function SchedulePage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    setSlotTimes((prev) => {
-      const next = [...prev];
-      while (next.length < postsPerDay) {
-        next.push(
-          next.length === 1 ? "09:00" : next.length === 2 ? "15:00" : "21:00",
-        );
-      }
-      return next.slice(0, postsPerDay);
-    });
-  }, [postsPerDay]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -177,11 +199,13 @@ export default function SchedulePage() {
 
   const previewRows = useMemo(() => {
     if (schedulableSelected.length <= 1) return [];
+    if (!cadenceStartDate || !cadenceTimesOfDay.length) return [];
     try {
       const slots = buildCadenceSlots({
-        startDate,
-        timesOfDay: slotTimes.slice(0, postsPerDay),
+        startDate: cadenceStartDate,
+        timesOfDay: cadenceTimesOfDay,
         count: schedulableSelected.length,
+        timeZone,
       });
       return schedulableSelected.map((v, i) => ({
         video: v,
@@ -190,7 +214,12 @@ export default function SchedulePage() {
     } catch {
       return [];
     }
-  }, [schedulableSelected, startDate, slotTimes, postsPerDay]);
+  }, [
+    schedulableSelected,
+    cadenceStartDate,
+    cadenceTimesOfDay,
+    timeZone,
+  ]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -231,8 +260,12 @@ export default function SchedulePage() {
     e.preventDefault();
     setMessage(null);
 
-    if (!channelId) {
+    if (!selectedChannels.size) {
       setMessage(t.schedule.needChannel);
+      return;
+    }
+    if (!timeZone) {
+      setMessage(t.schedule.needTimeZone);
       return;
     }
     if (!schedulableSelected.length) {
@@ -247,7 +280,14 @@ export default function SchedulePage() {
         setMessage(t.schedule.needDueAt);
         return;
       }
-      const due = new Date(dueAtLocal);
+      let dueIso: string;
+      try {
+        dueIso = datetimeLocalInZoneToIso(dueAtLocal, timeZone);
+      } catch {
+        setMessage(t.schedule.needDueAt);
+        return;
+      }
+      const due = new Date(dueIso);
       if (Number.isNaN(due.getTime()) || due.getTime() <= Date.now()) {
         setMessage(t.schedule.needDueAt);
         return;
@@ -256,19 +296,20 @@ export default function SchedulePage() {
         {
           videoId: schedulableSelected[0].id,
           text: text.trim() || defaultPostText(schedulableSelected[0].draft),
-          dueAt: due.toISOString(),
+          dueAt: dueIso,
         },
       ];
     } else {
-      if (!startDate) {
+      if (!cadenceStartDate || !cadenceTimesOfDay.length) {
         setMessage(t.schedule.needStartDate);
         return;
       }
       try {
         const slots = buildCadenceSlots({
-          startDate,
-          timesOfDay: slotTimes.slice(0, postsPerDay),
+          startDate: cadenceStartDate,
+          timesOfDay: cadenceTimesOfDay,
           count: schedulableSelected.length,
+          timeZone,
         });
         items = schedulableSelected.map((v, i) => ({
           videoId: v.id,
@@ -286,7 +327,10 @@ export default function SchedulePage() {
     const res = await fetch("/api/posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channelId, items }),
+      body: JSON.stringify({
+        channelIds: [...selectedChannels],
+        items,
+      }),
     });
     const data = await res.json();
     setLoading(false);
@@ -305,6 +349,18 @@ export default function SchedulePage() {
     setSelected(new Set());
     await load();
   }
+
+  function toggleChannel(id: string) {
+    setSelectedChannels((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const postCountEstimate =
+    schedulableSelected.length * Math.max(selectedChannels.size, 0);
 
   return (
     <div className="stack">
@@ -441,17 +497,72 @@ export default function SchedulePage() {
 
         <div>
           <label className="label">{t.schedule.channel}</label>
+          <div className="muted" style={{ fontSize: "0.85rem", marginBottom: 8 }}>
+            {t.schedule.channelsHint}
+          </div>
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              maxHeight: 220,
+              overflow: "auto",
+            }}
+          >
+            {channels.map((ch) => (
+              <label
+                key={ch.id}
+                className="row"
+                style={{
+                  gap: 10,
+                  padding: "0.65rem 0.75rem",
+                  borderBottom: "1px solid var(--border)",
+                  cursor: "pointer",
+                  alignItems: "flex-start",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedChannels.has(ch.id)}
+                  onChange={() => toggleChannel(ch.id)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  <strong>
+                    {ch.service || "channel"} — {ch.displayName || ch.channelId}
+                  </strong>
+                  <div className="muted" style={{ fontSize: "0.85rem" }}>
+                    {ch.accountLabel}
+                  </div>
+                </span>
+              </label>
+            ))}
+            {!channels.length ? (
+              <div className="muted" style={{ padding: "0.75rem" }}>
+                {t.schedule.selectChannel}
+              </div>
+            ) : null}
+          </div>
+          <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
+            {tf(t.schedule.channelsSelected, {
+              count: selectedChannels.size,
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="label">{t.schedule.timeZone}</label>
+          <div className="muted" style={{ fontSize: "0.85rem", marginBottom: 8 }}>
+            {t.schedule.timeZoneHint}
+          </div>
           <select
             className="select"
             required
-            value={channelId}
-            onChange={(e) => setChannelId(e.target.value)}
+            value={timeZone}
+            onChange={(e) => setTimeZone(e.target.value)}
           >
-            <option value="">{t.schedule.selectChannel}</option>
-            {channels.map((ch) => (
-              <option key={ch.id} value={ch.id}>
-                [{ch.accountLabel}] {ch.service} —{" "}
-                {ch.displayName || ch.channelId}
+            {timeZones.map((z) => (
+              <option key={z} value={z}>
+                {z}
               </option>
             ))}
           </select>
@@ -487,14 +598,14 @@ export default function SchedulePage() {
               {t.schedule.alreadyScheduledHint}
             </p>
             <div className="row" style={{ alignItems: "flex-start" }}>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <label className="label">{t.schedule.startDate}</label>
+              <div style={{ flex: 2, minWidth: 220 }}>
+                <label className="label">{t.schedule.startAt}</label>
                 <input
                   className="input"
-                  type="date"
+                  type="datetime-local"
                   required
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  value={startAtLocal}
+                  onChange={(e) => setStartAtLocal(e.target.value)}
                 />
               </div>
               <div style={{ flex: 1, minWidth: 140 }}>
@@ -512,26 +623,28 @@ export default function SchedulePage() {
                 </select>
               </div>
             </div>
-            <div className="row" style={{ flexWrap: "wrap" }}>
-              {slotTimes.slice(0, postsPerDay).map((time, i) => (
-                <div key={i} style={{ flex: 1, minWidth: 120 }}>
-                  <label className="label">
-                    {tf(t.schedule.slotTime, { n: i + 1 })}
-                  </label>
-                  <input
-                    className="input"
-                    type="time"
-                    required
-                    value={time}
-                    onChange={(e) => {
-                      const next = [...slotTimes];
-                      next[i] = e.target.value;
-                      setSlotTimes(next);
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
+            {postsPerDay > 1 ? (
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                {Array.from({ length: postsPerDay - 1 }, (_, idx) => (
+                  <div key={idx} style={{ flex: 1, minWidth: 120 }}>
+                    <label className="label">
+                      {tf(t.schedule.slotTime, { n: idx + 2 })}
+                    </label>
+                    <input
+                      className="input"
+                      type="time"
+                      required
+                      value={extraSlotTimes[idx] || "09:00"}
+                      onChange={(e) => {
+                        const next = [...extraSlotTimes];
+                        next[idx] = e.target.value;
+                        setExtraSlotTimes(next);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div>
               <h3 style={{ margin: "0 0 0.5rem" }}>
@@ -549,7 +662,9 @@ export default function SchedulePage() {
                     {previewRows.map(({ video, dueAt }) => (
                       <tr key={video.id}>
                         <td>{video.draft?.hook || video.id}</td>
-                        <td className="muted">{formatLocalDueAt(dueAt)}</td>
+                        <td className="muted">
+                          {formatLocalDueAt(dueAt, timeZone)}
+                        </td>
                       </tr>
                     ))}
                     {!previewRows.length ? (
@@ -575,15 +690,17 @@ export default function SchedulePage() {
         <button
           className="btn"
           type="submit"
-          disabled={loading || !schedulableSelected.length}
+          disabled={
+            loading ||
+            !schedulableSelected.length ||
+            !selectedChannels.size
+          }
         >
           {loading
             ? t.schedule.submitting
-            : schedulableSelected.length <= 1
+            : postCountEstimate <= 1
               ? t.schedule.submitOne
-              : tf(t.schedule.submitMany, {
-                  count: schedulableSelected.length,
-                })}
+              : tf(t.schedule.submitMany, { count: postCountEstimate })}
         </button>
       </form>
 

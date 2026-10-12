@@ -12,7 +12,9 @@ import { createVideoPost } from "@/server/integrations/buffer";
 import { defaultPostText } from "@/lib/publish-status";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
-const MAX_BATCH = 50;
+const MAX_VIDEOS = 50;
+const MAX_CHANNELS = 15;
+const MAX_POSTS = 150;
 
 type BulkItem = {
   videoId: string;
@@ -36,8 +38,13 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    // Legacy single-post shape → normalize to items[]
-    let channelRowId = String(body.channelId ?? "");
+    let channelIds: string[] = [];
+    if (Array.isArray(body.channelIds)) {
+      channelIds = body.channelIds.map(String).filter(Boolean);
+    } else if (body.channelId) {
+      channelIds = [String(body.channelId)];
+    }
+
     let items: BulkItem[] = [];
 
     if (Array.isArray(body.items)) {
@@ -49,22 +56,20 @@ export async function POST(request: Request) {
         }),
       );
     } else if (body.videoId) {
-      // Backward-compatible single create (always customScheduled when dueAt set)
       const mode =
         body.mode === "customScheduled" ? "customScheduled" : "addToQueue";
       const dueAt = body.dueAt ? String(body.dueAt) : undefined;
       const text = String(body.text ?? "").trim();
-      if (!channelRowId || !text) {
-        return jsonError("channelId and text are required");
+      if (!channelIds.length || !text) {
+        return jsonError("channelId(s) and text are required");
       }
       if (mode === "customScheduled" && !dueAt) {
         return jsonError("dueAt is required for customScheduled");
       }
       if (mode !== "customScheduled") {
-        // Keep legacy addToQueue path for any old callers
         return createLegacyQueuePost({
           videoId: String(body.videoId),
-          channelRowId,
+          channelRowId: channelIds[0],
           text,
           thumbnailOffsetMs:
             body.thumbnailOffsetMs !== undefined
@@ -81,10 +86,19 @@ export async function POST(request: Request) {
       ];
     }
 
-    if (!channelRowId) return jsonError("channelId is required");
+    if (!channelIds.length) return jsonError("channelIds required");
+    if (channelIds.length > MAX_CHANNELS) {
+      return jsonError(`At most ${MAX_CHANNELS} channels per batch`, 400);
+    }
     if (!items.length) return jsonError("items[] required");
-    if (items.length > MAX_BATCH) {
-      return jsonError(`At most ${MAX_BATCH} videos per batch`, 400);
+    if (items.length > MAX_VIDEOS) {
+      return jsonError(`At most ${MAX_VIDEOS} videos per batch`, 400);
+    }
+    if (items.length * channelIds.length > MAX_POSTS) {
+      return jsonError(
+        `Batch too large (max ${MAX_POSTS} posts = videos × channels)`,
+        400,
+      );
     }
 
     for (const it of items) {
@@ -97,13 +111,26 @@ export async function POST(request: Request) {
       }
     }
 
-    const channel = await db.query.bufferChannels.findFirst({
-      where: eq(bufferChannels.id, channelRowId),
+    const channelRows = await db.query.bufferChannels.findMany({
+      where: inArray(bufferChannels.id, channelIds),
     });
-    if (!channel) return jsonError("Channel not found", 404);
+    if (channelRows.length !== channelIds.length) {
+      return jsonError("One or more channels not found", 404);
+    }
+    const channelMap = new Map(channelRows.map((c) => [c.id, c]));
 
-    const apiKey = await getBufferAccountApiKey(channel.bufferAccountId);
-    if (!apiKey) return jsonError("Buffer account key missing", 400);
+    const apiKeyByAccount = new Map<string, string>();
+    for (const ch of channelRows) {
+      if (apiKeyByAccount.has(ch.bufferAccountId)) continue;
+      const key = await getBufferAccountApiKey(ch.bufferAccountId);
+      if (!key) {
+        return jsonError(
+          `Buffer account key missing for channel ${ch.displayName || ch.id}`,
+          400,
+        );
+      }
+      apiKeyByAccount.set(ch.bufferAccountId, key);
+    }
 
     const videoIds = items.map((i) => i.videoId);
     const videoRows = await db.query.videos.findMany({
@@ -122,75 +149,103 @@ export async function POST(request: Request) {
     const existingActive = await db.query.scheduledPosts.findMany({
       where: and(
         inArray(scheduledPosts.videoId, videoIds),
+        inArray(scheduledPosts.bufferChannelId, channelIds),
         ne(scheduledPosts.status, "failed"),
       ),
     });
-    const activeByVideo = new Set(existingActive.map((p) => p.videoId));
+    const activePair = new Set(
+      existingActive.map((p) => `${p.videoId}:${p.bufferChannelId}`),
+    );
 
     const created = [];
-    const errors: Array<{ videoId: string; error: string }> = [];
+    const errors: Array<{ videoId: string; channelId?: string; error: string }> =
+      [];
 
     for (const it of items) {
-      try {
-        const video = videoMap.get(it.videoId);
-        if (!video || video.status !== "ready" || !video.publicUrl) {
-          errors.push({
-            videoId: it.videoId,
-            error: "Video is not ready with a public URL",
-          });
-          continue;
-        }
-        if (activeByVideo.has(it.videoId)) {
-          errors.push({
-            videoId: it.videoId,
-            error: "Video already has an active scheduled/sent post",
-          });
-          continue;
-        }
-
-        const draft = draftMap.get(video.reelDraftId) ?? null;
-        const text = (it.text?.trim() || defaultPostText(draft)).trim();
-        if (!text) {
-          errors.push({ videoId: it.videoId, error: "Post text is empty" });
-          continue;
-        }
-
-        const post = await createVideoPost({
-          apiKey,
-          channelId: channel.channelId,
-          text,
-          videoUrl: video.publicUrl,
-          mode: "customScheduled",
-          dueAt: it.dueAt,
+      const video = videoMap.get(it.videoId);
+      if (!video || video.status !== "ready" || !video.publicUrl) {
+        errors.push({
+          videoId: it.videoId,
+          error: "Video is not ready with a public URL",
         });
+        continue;
+      }
 
-        const [scheduled] = await db
-          .insert(scheduledPosts)
-          .values({
+      const draft = draftMap.get(video.reelDraftId) ?? null;
+      const text = (it.text?.trim() || defaultPostText(draft)).trim();
+      if (!text) {
+        errors.push({ videoId: it.videoId, error: "Post text is empty" });
+        continue;
+      }
+
+      let anySuccess = false;
+
+      for (const channelRowId of channelIds) {
+        const channel = channelMap.get(channelRowId);
+        if (!channel) continue;
+
+        const pairKey = `${it.videoId}:${channel.id}`;
+        if (activePair.has(pairKey)) {
+          errors.push({
             videoId: it.videoId,
-            reelDraftId: video.reelDraftId,
-            bufferAccountId: channel.bufferAccountId,
-            bufferChannelId: channel.id,
-            bufferPostId: post.id,
-            text,
-            mode: "customScheduled",
-            dueAt: new Date(it.dueAt),
-            status: "scheduled",
-          })
-          .returning();
+            channelId: channel.id,
+            error: "Already scheduled on this channel",
+          });
+          continue;
+        }
 
+        const apiKey = apiKeyByAccount.get(channel.bufferAccountId);
+        if (!apiKey) {
+          errors.push({
+            videoId: it.videoId,
+            channelId: channel.id,
+            error: "Buffer account key missing",
+          });
+          continue;
+        }
+
+        try {
+          const post = await createVideoPost({
+            apiKey,
+            channelId: channel.channelId,
+            text,
+            videoUrl: video.publicUrl,
+            mode: "customScheduled",
+            dueAt: it.dueAt,
+          });
+
+          const [scheduled] = await db
+            .insert(scheduledPosts)
+            .values({
+              videoId: it.videoId,
+              reelDraftId: video.reelDraftId,
+              bufferAccountId: channel.bufferAccountId,
+              bufferChannelId: channel.id,
+              bufferPostId: post.id,
+              text,
+              mode: "customScheduled",
+              dueAt: new Date(it.dueAt),
+              status: "scheduled",
+            })
+            .returning();
+
+          activePair.add(pairKey);
+          anySuccess = true;
+          created.push(scheduled);
+        } catch (err) {
+          errors.push({
+            videoId: it.videoId,
+            channelId: channel.id,
+            error: err instanceof Error ? err.message : "Failed to schedule",
+          });
+        }
+      }
+
+      if (anySuccess) {
         await db
           .update(reelDrafts)
           .set({ status: "scheduled", updatedAt: new Date() })
           .where(eq(reelDrafts.id, video.reelDraftId));
-
-        activeByVideo.add(it.videoId);
-        created.push(scheduled);
-      } catch (err) {
-        errors.push({
-          videoId: it.videoId,
-          error: err instanceof Error ? err.message : "Failed to schedule",
-        });
       }
     }
 
@@ -253,7 +308,12 @@ async function createLegacyQueuePost(params: {
       .set({ status: "scheduled", updatedAt: new Date() })
       .where(eq(reelDrafts.id, video.reelDraftId));
 
-    return jsonOk({ post: scheduled, posts: [scheduled], created: 1, errors: [] });
+    return jsonOk({
+      post: scheduled,
+      posts: [scheduled],
+      created: 1,
+      errors: [],
+    });
   } catch (err) {
     return jsonError(
       err instanceof Error ? err.message : "Failed to create Buffer post",
