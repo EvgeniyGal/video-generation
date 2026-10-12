@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import { processPendingCarouselJobs } from "./run-carousel";
 import { pollHeyGenJobs } from "./poll-heygen";
 import { processPendingSlideshowJobs } from "./run-slideshow";
 import { syncBufferMetrics } from "./sync-buffer-metrics";
@@ -30,6 +31,18 @@ export function startBackgroundJobs() {
       }
     } catch (err) {
       console.error("[jobs] slideshow poll error", err);
+    }
+  });
+
+  // Pick up pending carousel jobs
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      const result = await processPendingCarouselJobs();
+      if (result.processed > 0) {
+        console.log(`[jobs] carousel processed=${result.processed}`);
+      }
+    } catch (err) {
+      console.error("[jobs] carousel poll error", err);
     }
   });
 

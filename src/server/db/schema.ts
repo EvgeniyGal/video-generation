@@ -113,6 +113,49 @@ export type SlideshowJobPayload = {
   scenePlan?: unknown;
 };
 
+export type CarouselSlide = {
+  index: number;
+  headline: string;
+  body?: string;
+  imagePrompt: string;
+};
+
+export type CarouselJobPayload = {
+  step?: string;
+};
+
+export const carouselDrafts = pgTable("vc_carousel_drafts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  hook: text("hook").notNull().default(""),
+  caption: text("caption").notNull().default(""),
+  hashtags: jsonb("hashtags").$type<string[]>().notNull().default([]),
+  language: text("language").notNull().default("en"), // en | ua
+  niche: text("niche").notNull().default(""),
+  audience: text("audience").notNull().default(""),
+  productMention: text("product_mention").notNull().default(""),
+  slides: jsonb("slides").$type<CarouselSlide[]>().notNull().default([]),
+  status: text("status").notNull().default("draft"),
+  // draft | approved | generating | ready | scheduled | posted | failed
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const carousels = pgTable("vc_carousels", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  carouselDraftId: uuid("carousel_draft_id")
+    .notNull()
+    .references(() => carouselDrafts.id, { onDelete: "cascade" }),
+  slideUrls: jsonb("slide_urls").$type<string[]>().notNull().default([]),
+  storagePaths: jsonb("storage_paths").$type<string[]>().notNull().default([]),
+  status: text("status").notNull().default("pending"),
+  // pending | generating | uploading | ready | failed
+  jobPayload: jsonb("job_payload").$type<CarouselJobPayload | null>(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const videos = pgTable("vc_videos", {
   id: uuid("id").defaultRandom().primaryKey(),
   reelDraftId: uuid("reel_draft_id")
@@ -135,10 +178,15 @@ export const videos = pgTable("vc_videos", {
 
 export const scheduledPosts = pgTable("vc_scheduled_posts", {
   id: uuid("id").defaultRandom().primaryKey(),
-  videoId: uuid("video_id")
-    .notNull()
-    .references(() => videos.id, { onDelete: "cascade" }),
+  /** Exactly one of videoId or carouselId should be set. */
+  videoId: uuid("video_id").references(() => videos.id, { onDelete: "cascade" }),
+  carouselId: uuid("carousel_id").references(() => carousels.id, {
+    onDelete: "cascade",
+  }),
   reelDraftId: uuid("reel_draft_id").references(() => reelDrafts.id, {
+    onDelete: "set null",
+  }),
+  carouselDraftId: uuid("carousel_draft_id").references(() => carouselDrafts.id, {
     onDelete: "set null",
   }),
   bufferAccountId: uuid("buffer_account_id")

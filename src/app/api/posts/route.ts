@@ -3,21 +3,27 @@ import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import {
   bufferChannels,
+  carouselDrafts,
+  carousels,
   reelDrafts,
   scheduledPosts,
   videos,
 } from "@/server/db/schema";
 import { getBufferAccountApiKey } from "@/server/integrations/credentials";
-import { createVideoPost } from "@/server/integrations/buffer";
+import {
+  createImagePost,
+  createVideoPost,
+} from "@/server/integrations/buffer";
 import { defaultPostText } from "@/lib/publish-status";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
-const MAX_VIDEOS = 50;
+const MAX_ITEMS = 50;
 const MAX_CHANNELS = 15;
 const MAX_POSTS = 150;
 
 type BulkItem = {
-  videoId: string;
+  videoId?: string;
+  carouselId?: string;
   text?: string;
   dueAt: string;
 };
@@ -49,8 +55,14 @@ export async function POST(request: Request) {
 
     if (Array.isArray(body.items)) {
       items = body.items.map(
-        (it: { videoId?: string; text?: string; dueAt?: string }) => ({
-          videoId: String(it.videoId ?? ""),
+        (it: {
+          videoId?: string;
+          carouselId?: string;
+          text?: string;
+          dueAt?: string;
+        }) => ({
+          videoId: it.videoId ? String(it.videoId) : undefined,
+          carouselId: it.carouselId ? String(it.carouselId) : undefined,
           text: it.text !== undefined ? String(it.text) : undefined,
           dueAt: String(it.dueAt ?? ""),
         }),
@@ -84,6 +96,19 @@ export async function POST(request: Request) {
           dueAt: dueAt!,
         },
       ];
+    } else if (body.carouselId) {
+      const dueAt = body.dueAt ? String(body.dueAt) : undefined;
+      const text = String(body.text ?? "").trim();
+      if (!channelIds.length || !text || !dueAt) {
+        return jsonError("channelId(s), text, and dueAt are required");
+      }
+      items = [
+        {
+          carouselId: String(body.carouselId),
+          text,
+          dueAt,
+        },
+      ];
     }
 
     if (!channelIds.length) return jsonError("channelIds required");
@@ -91,23 +116,29 @@ export async function POST(request: Request) {
       return jsonError(`At most ${MAX_CHANNELS} channels per batch`, 400);
     }
     if (!items.length) return jsonError("items[] required");
-    if (items.length > MAX_VIDEOS) {
-      return jsonError(`At most ${MAX_VIDEOS} videos per batch`, 400);
+    if (items.length > MAX_ITEMS) {
+      return jsonError(`At most ${MAX_ITEMS} items per batch`, 400);
     }
     if (items.length * channelIds.length > MAX_POSTS) {
       return jsonError(
-        `Batch too large (max ${MAX_POSTS} posts = videos × channels)`,
+        `Batch too large (max ${MAX_POSTS} posts = items × channels)`,
         400,
       );
     }
 
     for (const it of items) {
-      if (!it.videoId || !it.dueAt) {
-        return jsonError("Each item needs videoId and dueAt");
+      if ((!it.videoId && !it.carouselId) || !it.dueAt) {
+        return jsonError("Each item needs videoId or carouselId, and dueAt");
+      }
+      if (it.videoId && it.carouselId) {
+        return jsonError("Each item must have only one of videoId or carouselId");
       }
       const due = new Date(it.dueAt);
       if (Number.isNaN(due.getTime()) || due.getTime() <= Date.now()) {
-        return jsonError(`dueAt must be a future time (${it.videoId})`, 400);
+        return jsonError(
+          `dueAt must be a future time (${it.videoId || it.carouselId})`,
+          400,
+        );
       }
     }
 
@@ -132,37 +163,168 @@ export async function POST(request: Request) {
       apiKeyByAccount.set(ch.bufferAccountId, key);
     }
 
-    const videoIds = items.map((i) => i.videoId);
-    const videoRows = await db.query.videos.findMany({
-      where: inArray(videos.id, videoIds),
-    });
+    const videoIds = items.map((i) => i.videoId).filter(Boolean) as string[];
+    const carouselIds = items
+      .map((i) => i.carouselId)
+      .filter(Boolean) as string[];
+
+    const videoRows = videoIds.length
+      ? await db.query.videos.findMany({ where: inArray(videos.id, videoIds) })
+      : [];
     const videoMap = new Map(videoRows.map((v) => [v.id, v]));
 
-    const drafts = await db.query.reelDrafts.findMany({
-      where: inArray(
-        reelDrafts.id,
-        videoRows.map((v) => v.reelDraftId),
-      ),
-    });
-    const draftMap = new Map(drafts.map((d) => [d.id, d]));
+    const carouselRows = carouselIds.length
+      ? await db.query.carousels.findMany({
+          where: inArray(carousels.id, carouselIds),
+        })
+      : [];
+    const carouselMap = new Map(carouselRows.map((c) => [c.id, c]));
+
+    const reelDraftRows = videoRows.length
+      ? await db.query.reelDrafts.findMany({
+          where: inArray(
+            reelDrafts.id,
+            videoRows.map((v) => v.reelDraftId),
+          ),
+        })
+      : [];
+    const reelDraftMap = new Map(reelDraftRows.map((d) => [d.id, d]));
+
+    const carouselDraftRows = carouselRows.length
+      ? await db.query.carouselDrafts.findMany({
+          where: inArray(
+            carouselDrafts.id,
+            carouselRows.map((c) => c.carouselDraftId),
+          ),
+        })
+      : [];
+    const carouselDraftMap = new Map(carouselDraftRows.map((d) => [d.id, d]));
 
     const existingActive = await db.query.scheduledPosts.findMany({
       where: and(
-        inArray(scheduledPosts.videoId, videoIds),
         inArray(scheduledPosts.bufferChannelId, channelIds),
         ne(scheduledPosts.status, "failed"),
       ),
     });
     const activePair = new Set(
-      existingActive.map((p) => `${p.videoId}:${p.bufferChannelId}`),
+      existingActive.map((p) =>
+        p.videoId
+          ? `v:${p.videoId}:${p.bufferChannelId}`
+          : `c:${p.carouselId}:${p.bufferChannelId}`,
+      ),
     );
 
     const created = [];
-    const errors: Array<{ videoId: string; channelId?: string; error: string }> =
-      [];
+    const errors: Array<{
+      videoId?: string;
+      carouselId?: string;
+      channelId?: string;
+      error: string;
+    }> = [];
 
     for (const it of items) {
-      const video = videoMap.get(it.videoId);
+      if (it.carouselId) {
+        const carousel = carouselMap.get(it.carouselId);
+        if (
+          !carousel ||
+          carousel.status !== "ready" ||
+          !carousel.slideUrls?.length
+        ) {
+          errors.push({
+            carouselId: it.carouselId,
+            error: "Carousel is not ready with slide URLs",
+          });
+          continue;
+        }
+        if (carousel.slideUrls.length > 10) {
+          errors.push({
+            carouselId: it.carouselId,
+            error: "Carousel has more than 10 slides",
+          });
+          continue;
+        }
+
+        const draft = carouselDraftMap.get(carousel.carouselDraftId) ?? null;
+        const text = (it.text?.trim() || defaultPostText(draft)).trim();
+        if (!text) {
+          errors.push({
+            carouselId: it.carouselId,
+            error: "Post text is empty",
+          });
+          continue;
+        }
+
+        let anySuccess = false;
+        for (const channelRowId of channelIds) {
+          const channel = channelMap.get(channelRowId);
+          if (!channel) continue;
+          const pairKey = `c:${it.carouselId}:${channel.id}`;
+          if (activePair.has(pairKey)) {
+            errors.push({
+              carouselId: it.carouselId,
+              channelId: channel.id,
+              error: "Already scheduled on this channel",
+            });
+            continue;
+          }
+          const apiKey = apiKeyByAccount.get(channel.bufferAccountId);
+          if (!apiKey) {
+            errors.push({
+              carouselId: it.carouselId,
+              channelId: channel.id,
+              error: "Buffer account key missing",
+            });
+            continue;
+          }
+
+          try {
+            const post = await createImagePost({
+              apiKey,
+              channelId: channel.channelId,
+              text,
+              imageUrls: carousel.slideUrls,
+              mode: "customScheduled",
+              dueAt: it.dueAt,
+            });
+
+            const [scheduled] = await db
+              .insert(scheduledPosts)
+              .values({
+                carouselId: it.carouselId,
+                carouselDraftId: carousel.carouselDraftId,
+                bufferAccountId: channel.bufferAccountId,
+                bufferChannelId: channel.id,
+                bufferPostId: post.id,
+                text,
+                mode: "customScheduled",
+                dueAt: new Date(it.dueAt),
+                status: "scheduled",
+              })
+              .returning();
+
+            activePair.add(pairKey);
+            anySuccess = true;
+            created.push(scheduled);
+          } catch (err) {
+            errors.push({
+              carouselId: it.carouselId,
+              channelId: channel.id,
+              error: err instanceof Error ? err.message : "Failed to schedule",
+            });
+          }
+        }
+
+        if (anySuccess) {
+          await db
+            .update(carouselDrafts)
+            .set({ status: "scheduled", updatedAt: new Date() })
+            .where(eq(carouselDrafts.id, carousel.carouselDraftId));
+        }
+        continue;
+      }
+
+      // Video path
+      const video = videoMap.get(it.videoId!);
       if (!video || video.status !== "ready" || !video.publicUrl) {
         errors.push({
           videoId: it.videoId,
@@ -171,7 +333,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const draft = draftMap.get(video.reelDraftId) ?? null;
+      const draft = reelDraftMap.get(video.reelDraftId) ?? null;
       const text = (it.text?.trim() || defaultPostText(draft)).trim();
       if (!text) {
         errors.push({ videoId: it.videoId, error: "Post text is empty" });
@@ -184,7 +346,7 @@ export async function POST(request: Request) {
         const channel = channelMap.get(channelRowId);
         if (!channel) continue;
 
-        const pairKey = `${it.videoId}:${channel.id}`;
+        const pairKey = `v:${it.videoId}:${channel.id}`;
         if (activePair.has(pairKey)) {
           errors.push({
             videoId: it.videoId,

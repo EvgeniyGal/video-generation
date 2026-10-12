@@ -33,6 +33,21 @@ type VideoRow = {
   } | null;
 };
 
+type CarouselRow = {
+  id: string;
+  status: string;
+  slideUrls: string[];
+  createdAt?: string;
+  publishStatus?: PublishStatus;
+  draft: {
+    hook: string;
+    caption: string;
+    hashtags: string[];
+  } | null;
+};
+
+type MediaKind = "videos" | "carousels";
+
 type Channel = {
   id: string;
   channelId: string;
@@ -77,7 +92,9 @@ function splitDatetimeLocal(value: string): { date: string; time: string } | nul
 
 export default function SchedulePage() {
   const { t, tf } = useLocale();
+  const [mediaKind, setMediaKind] = useState<MediaKind>("videos");
   const [videos, setVideos] = useState<VideoRow[]>([]);
+  const [carouselRows, setCarouselRows] = useState<CarouselRow[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [filter, setFilter] = useState<PublishFilter>("unposted");
@@ -116,29 +133,41 @@ export default function SchedulePage() {
   );
 
   const load = useCallback(async () => {
-    const [vRes, cRes, pRes] = await Promise.all([
+    const [vRes, carRes, cRes, pRes] = await Promise.all([
       fetch("/api/videos"),
+      fetch("/api/carousels"),
       fetch("/api/buffer/channels"),
       fetch("/api/posts"),
     ]);
     const vData = await vRes.json();
+    const carData = await carRes.json();
     const cData = await cRes.json();
     const pData = await pRes.json();
     const ready = ((vData.videos ?? []) as VideoRow[]).filter(
       (v) => v.status === "ready" && v.publicUrl,
     );
+    const readyCarousels = ((carData.carousels ?? []) as CarouselRow[]).filter(
+      (c) => c.status === "ready" && c.slideUrls?.length,
+    );
     setVideos(ready);
+    setCarouselRows(readyCarousels);
     setChannels(cData.channels ?? []);
     setPosts(pData.posts ?? []);
   }, []);
 
   useEffect(() => {
+    setSelected(new Set());
+  }, [mediaKind]);
+
+  useEffect(() => {
     load();
   }, [load]);
 
+  const mediaItems = mediaKind === "videos" ? videos : carouselRows;
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let rows = videos.filter((v) => {
+    let rows = mediaItems.filter((v) => {
       const ps = v.publishStatus ?? "unposted";
       if (filter && ps !== filter) return false;
       if (!q) return true;
@@ -164,7 +193,7 @@ export default function SchedulePage() {
     });
 
     return rows;
-  }, [videos, filter, search, sortKey, sortDir]);
+  }, [mediaItems, filter, search, sortKey, sortDir]);
 
   const selectableIds = useMemo(
     () =>
@@ -178,19 +207,19 @@ export default function SchedulePage() {
     selectableIds.length > 0 &&
     selectableIds.every((id) => selected.has(id));
 
-  const selectedVideos = useMemo(() => {
-    const map = new Map(videos.map((v) => [v.id, v]));
+  const selectedMedia = useMemo(() => {
+    const map = new Map(mediaItems.map((v) => [v.id, v]));
     return [...selected]
       .map((id) => map.get(id))
-      .filter((v): v is VideoRow => Boolean(v));
-  }, [selected, videos]);
+      .filter((v): v is VideoRow | CarouselRow => Boolean(v));
+  }, [selected, mediaItems]);
 
   const schedulableSelected = useMemo(
     () =>
-      selectedVideos.filter(
+      selectedMedia.filter(
         (v) => (v.publishStatus ?? "unposted") === "unposted",
       ),
-    [selectedVideos],
+    [selectedMedia],
   );
 
   useEffect(() => {
@@ -209,7 +238,7 @@ export default function SchedulePage() {
         timeZone,
       });
       return schedulableSelected.map((v, i) => ({
-        video: v,
+        item: v,
         dueAt: slots[i],
       }));
     } catch {
@@ -274,7 +303,17 @@ export default function SchedulePage() {
       return;
     }
 
-    let items: Array<{ videoId: string; text?: string; dueAt: string }>;
+    let items: Array<{
+      videoId?: string;
+      carouselId?: string;
+      text?: string;
+      dueAt: string;
+    }>;
+
+    const toItem = (id: string, dueAt: string, text?: string) =>
+      mediaKind === "carousels"
+        ? { carouselId: id, dueAt, text }
+        : { videoId: id, dueAt, text };
 
     if (schedulableSelected.length === 1) {
       if (!dueAtLocal) {
@@ -294,11 +333,11 @@ export default function SchedulePage() {
         return;
       }
       items = [
-        {
-          videoId: schedulableSelected[0].id,
-          text: text.trim() || defaultPostText(schedulableSelected[0].draft),
-          dueAt: dueIso,
-        },
+        toItem(
+          schedulableSelected[0].id,
+          dueIso,
+          text.trim() || defaultPostText(schedulableSelected[0].draft),
+        ),
       ];
     } else {
       if (!cadenceStartDate || !cadenceTimesOfDay.length) {
@@ -312,10 +351,7 @@ export default function SchedulePage() {
           count: schedulableSelected.length,
           timeZone,
         });
-        items = schedulableSelected.map((v, i) => ({
-          videoId: v.id,
-          dueAt: slots[i],
-        }));
+        items = schedulableSelected.map((v, i) => toItem(v.id, slots[i]));
       } catch (err) {
         setMessage(
           err instanceof Error ? err.message : t.schedule.needStartDate,
@@ -371,6 +407,24 @@ export default function SchedulePage() {
       </div>
 
       {message ? <div className="muted">{message}</div> : null}
+
+      <div className="row" style={{ gap: 8 }}>
+        <button
+          type="button"
+          className={mediaKind === "videos" ? "btn" : "btn btn-secondary"}
+          onClick={() => setMediaKind("videos")}
+        >
+          {t.schedule.mediaVideos}
+        </button>
+        <button
+          type="button"
+          className={mediaKind === "carousels" ? "btn" : "btn btn-secondary"}
+          onClick={() => setMediaKind("carousels")}
+        >
+          {t.schedule.mediaCarousels}
+        </button>
+      </div>
+
       {selected.size ? (
         <div className="muted">
           {tf(t.schedule.selectedCount, { count: selected.size })}
@@ -647,9 +701,9 @@ export default function SchedulePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {previewRows.map(({ video, dueAt }) => (
-                      <tr key={video.id}>
-                        <td>{video.draft?.hook || video.id}</td>
+                    {previewRows.map(({ item, dueAt }) => (
+                      <tr key={item.id}>
+                        <td>{item.draft?.hook || item.id}</td>
                         <td className="muted">
                           {formatLocalDueAt(dueAt, timeZone)}
                         </td>

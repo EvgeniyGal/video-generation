@@ -29,6 +29,7 @@ try {
     "drizzle/0002_enable_rls.sql",
     "drizzle/0003_draft_language.sql",
     "drizzle/0004_slideshow_video.sql",
+    "drizzle/0005_carousels.sql",
   ];
   for (const relative of files) {
     const file = resolve(relative);

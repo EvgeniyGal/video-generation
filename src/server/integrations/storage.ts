@@ -22,11 +22,35 @@ export async function uploadPublicVideo(params: {
   bytes: Buffer;
   contentType?: string;
 }): Promise<{ publicUrl: string; path: string }> {
+  return uploadPublicBytes({
+    path: params.path,
+    bytes: params.bytes,
+    contentType: params.contentType ?? "video/mp4",
+  });
+}
+
+export async function uploadPublicImage(params: {
+  path: string;
+  bytes: Buffer;
+  contentType?: string;
+}): Promise<{ publicUrl: string; path: string }> {
+  return uploadPublicBytes({
+    path: params.path,
+    bytes: params.bytes,
+    contentType: params.contentType ?? "image/jpeg",
+  });
+}
+
+async function uploadPublicBytes(params: {
+  path: string;
+  bytes: Buffer;
+  contentType: string;
+}): Promise<{ publicUrl: string; path: string }> {
   const supabase = getSupabaseAdmin();
   const bucket = getVideosBucket();
 
   const { error } = await supabase.storage.from(bucket).upload(params.path, params.bytes, {
-    contentType: params.contentType ?? "video/mp4",
+    contentType: params.contentType,
     upsert: true,
   });
 
@@ -36,7 +60,7 @@ export async function uploadPublicVideo(params: {
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(params.path);
   if (!data.publicUrl) {
-    throw new Error("Failed to resolve public URL for uploaded video");
+    throw new Error("Failed to resolve public URL for uploaded file");
   }
   return { publicUrl: data.publicUrl, path: params.path };
 }

@@ -24,6 +24,7 @@ export async function GET() {
 
     const postsByVideo = new Map<string, typeof posts>();
     for (const p of posts) {
+      if (!p.videoId) continue;
       const list = postsByVideo.get(p.videoId) ?? [];
       list.push(p);
       postsByVideo.set(p.videoId, list);

@@ -94,6 +94,110 @@ Respond with JSON keys: hook, script, caption, hashtags (string array), cta, vis
   };
 }
 
+export const carouselContentSchema = z.object({
+  hook: z.string(),
+  caption: z.string(),
+  hashtags: z.array(z.string()),
+  slides: z
+    .array(
+      z.object({
+        headline: z.string(),
+        body: z.string().optional(),
+        imagePrompt: z.string(),
+      }),
+    )
+    .min(3)
+    .max(10),
+});
+
+export type CarouselContent = z.infer<typeof carouselContentSchema> & {
+  language: ContentLanguage;
+};
+
+const CAROUSEL_SYSTEM_PROMPT = `You are an expert TikTok/Instagram photo-carousel strategist (Vent Now–style listicles).
+Given a niche brief, produce one carousel pack optimized for saves and swipe-through.
+
+Rules:
+- Slide 1 is the hook: a bold listicle promise (e.g. "5 questions nobody talks about…"). Optionally mark as part of a series.
+- Following slides are concrete tips/questions/items; short headline + optional 1–2 sentence body.
+- Soft product mention ONLY: if a product name is provided, mention it casually once on a mid-carousel slide (never slide 1, never as a hard CTA). No logos, no "download the app", no "link in bio".
+- If no product is provided, do not invent one.
+- imagePrompt is ALWAYS in English: candid phone-photo aesthetic, lifestyle/mood matching the niche, natural lighting, NO text, NO logos, NO watermarks in the image.
+- Caption: short, platform-friendly, soft engagement ask; hashtags 5–12 without requiring # prefix.
+- ALL user-facing text (hook, caption, hashtags, slide headline/body) MUST be in the requested content language.
+Return ONLY valid JSON matching the schema.`;
+
+export async function generateCarouselContent(params: {
+  apiKey: string;
+  niche: string;
+  audience?: string;
+  productSoftMention?: string;
+  slideCount?: number;
+  language: ContentLanguage;
+  seriesHint?: string;
+  model?: string;
+}): Promise<CarouselContent> {
+  const client = new OpenAI({ apiKey: params.apiKey });
+  const model = params.model || "gpt-4.1-mini";
+  const languageName = contentLanguageLabel(params.language);
+  const slideCount = Math.min(8, Math.max(4, Math.round(params.slideCount ?? 5)));
+
+  const userParts = [
+    `Niche / topic:\n${params.niche}`,
+    params.audience ? `Audience:\n${params.audience}` : null,
+    params.productSoftMention
+      ? `Soft product mention (use casually once mid-carousel, never as a hard sell):\n${params.productSoftMention}`
+      : `No product to mention.`,
+    params.seriesHint ? `Series hint:\n${params.seriesHint}` : null,
+    `Exact slide count: ${slideCount} (including the hook slide).`,
+    `Content language: ${languageName} (${params.language}).`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const completion = await client.chat.completions.create({
+    model,
+    temperature: 0.85,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: CAROUSEL_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `${userParts}
+
+Respond with JSON keys: hook, caption, hashtags (string array), slides (array of { headline, body?, imagePrompt }). slides.length must be ${slideCount}.`,
+      },
+    ],
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) throw new Error("OpenAI returned empty carousel content");
+
+  const parsed = carouselContentSchema.parse(JSON.parse(raw));
+  parsed.hashtags = parsed.hashtags.map((t) =>
+    t.startsWith("#") ? t.slice(1) : t,
+  );
+
+  // Normalize length to requested count
+  let slides = parsed.slides.slice(0, slideCount);
+  while (slides.length < slideCount) {
+    slides.push({
+      headline: parsed.hook,
+      body: "",
+      imagePrompt:
+        "Candid phone photo lifestyle scene matching the niche, natural light, no text",
+    });
+  }
+
+  return {
+    hook: parsed.hook,
+    caption: parsed.caption,
+    hashtags: parsed.hashtags,
+    slides,
+    language: params.language,
+  };
+}
+
 export function buildHeyGenPrompt(content: {
   hook: string;
   script: string;

@@ -22,7 +22,7 @@ npm install
 npm run db:migrate
 ```
 
-Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000` → `0001` → `0002` → `0003` → `0004`).
+Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000` → `0001` → `0002` → `0003` → `0004` → `0005`).
 
 **FFmpeg (Slideshow video):** Locally, install FFmpeg so `ffmpeg` and `ffprobe` are on your PATH (Windows: `winget install Gyan.FFmpeg`), then restart `npm run dev:server`. Docker images already include FFmpeg (see `Dockerfile` / `docker compose up --build`).
 

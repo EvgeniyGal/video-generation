@@ -144,6 +144,80 @@ export async function createVideoPost(params: {
   return result.post;
 }
 
+export async function createImagePost(params: {
+  apiKey: string;
+  channelId: string;
+  text: string;
+  imageUrls: string[];
+  mode: "addToQueue" | "customScheduled";
+  dueAt?: string;
+}) {
+  if (!params.imageUrls.length) {
+    throw new Error("At least one image URL is required");
+  }
+  if (params.imageUrls.length > 10) {
+    throw new Error("At most 10 images per carousel post");
+  }
+
+  const dueAtLine =
+    params.mode === "customScheduled" && params.dueAt
+      ? `dueAt: "${params.dueAt}"`
+      : "";
+
+  const assets = params.imageUrls
+    .map(
+      (url) => `{
+              image: {
+                url: ${JSON.stringify(url)}
+              }
+            }`,
+    )
+    .join("\n            ");
+
+  const mutation = `
+    mutation CreateImagePost {
+      createPost(
+        input: {
+          text: ${JSON.stringify(params.text)}
+          channelId: "${params.channelId}"
+          schedulingType: automatic
+          mode: ${params.mode}
+          ${dueAtLine}
+          assets: [
+            ${assets}
+          ]
+        }
+      ) {
+        ... on PostActionSuccess {
+          post {
+            id
+            text
+            dueAt
+          }
+        }
+        ... on MutationError {
+          message
+        }
+      }
+    }
+  `;
+
+  const data = await bufferGraphql<{
+    createPost:
+      | { post: { id: string; text: string; dueAt?: string }; message?: never }
+      | { message: string; post?: never };
+  }>(params.apiKey, mutation);
+
+  const result = data.createPost;
+  if ("message" in result && result.message && !result.post) {
+    throw new Error(result.message);
+  }
+  if (!result.post) {
+    throw new Error("Buffer createPost failed");
+  }
+  return result.post;
+}
+
 export type BufferPostMetric = {
   type: string;
   name: string;

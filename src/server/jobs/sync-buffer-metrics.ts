@@ -1,6 +1,11 @@
 import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/server/db";
-import { postMetrics, reelDrafts, scheduledPosts } from "@/server/db/schema";
+import {
+  carouselDrafts,
+  postMetrics,
+  reelDrafts,
+  scheduledPosts,
+} from "@/server/db/schema";
 import { getBufferAccountApiKey } from "@/server/integrations/credentials";
 import { fetchPostMetrics } from "@/server/integrations/buffer";
 
@@ -46,6 +51,12 @@ export async function syncBufferMetrics() {
             .update(reelDrafts)
             .set({ status: "posted", updatedAt: new Date() })
             .where(eq(reelDrafts.id, post.reelDraftId));
+        }
+        if (post.carouselDraftId) {
+          await db
+            .update(carouselDrafts)
+            .set({ status: "posted", updatedAt: new Date() })
+            .where(eq(carouselDrafts.id, post.carouselDraftId));
         }
       }
 
