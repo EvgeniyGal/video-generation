@@ -112,10 +112,13 @@ const en = {
     generateOne: "Generate video",
     deleteOne: "Delete",
     deleteSelected: "Delete selected",
+    deleteConfirmTitle: "Delete draft?",
     deleteConfirm:
-      "Delete this draft? Related videos, scheduled posts, and analytics will also be permanently deleted.",
+      "Related videos, scheduled posts, and analytics will also be permanently deleted. This cannot be undone.",
+    deleteSelectedConfirmTitle: "Delete {count} draft(s)?",
     deleteSelectedConfirm:
-      "Delete {count} selected draft(s)? Related videos, scheduled posts, and analytics will also be permanently deleted.",
+      "Related videos, scheduled posts, and analytics will also be permanently deleted. This cannot be undone.",
+    deleteConfirmAction: "Delete",
     deleted: "Draft deleted",
     deletedMany: "Deleted {count} draft(s)",
     actions: "Actions",
@@ -339,10 +342,13 @@ const ua: Messages = {
     generateOne: "Згенерувати відео",
     deleteOne: "Видалити",
     deleteSelected: "Видалити вибрані",
+    deleteConfirmTitle: "Видалити чернетку?",
     deleteConfirm:
-      "Видалити цю чернетку? Пов’язані відео, заплановані пости та аналітика також будуть остаточно видалені.",
+      "Пов’язані відео, заплановані пости та аналітика також будуть остаточно видалені. Дію не можна скасувати.",
+    deleteSelectedConfirmTitle: "Видалити чернетки ({count})?",
     deleteSelectedConfirm:
-      "Видалити вибрані чернетки ({count})? Пов’язані відео, заплановані пости та аналітика також будуть остаточно видалені.",
+      "Пов’язані відео, заплановані пости та аналітика також будуть остаточно видалені. Дію не можна скасувати.",
+    deleteConfirmAction: "Видалити",
     deleted: "Чернетку видалено",
     deletedMany: "Видалено чернеток: {count}",
     actions: "Дії",

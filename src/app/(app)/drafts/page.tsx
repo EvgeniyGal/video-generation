@@ -143,6 +143,9 @@ export default function DraftsPage() {
   const [brandTone, setBrandTone] = useState("");
   const [visualStyle, setVisualStyle] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<
+    null | { mode: "one"; id: string } | { mode: "many"; ids: string[] }
+  >(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
@@ -359,46 +362,30 @@ export default function DraftsPage() {
     await load();
   }
 
-  async function deleteDraft(id: string) {
-    if (!confirm(t.drafts.deleteConfirm)) return;
-    setLoading(true);
-    setMessage(null);
-    const res = await fetch("/api/drafts", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setMessage(data.error || "Delete failed");
-      return;
-    }
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setMessage(t.drafts.deleted);
-    await load();
+  function requestDeleteDraft(id: string) {
+    setDeleteTarget({ mode: "one", id });
   }
 
-  async function deleteSelected() {
+  function requestDeleteSelected() {
     if (!selected.size) return;
-    if (
-      !confirm(
-        tf(t.drafts.deleteSelectedConfirm, { count: selected.size }),
-      )
-    ) {
-      return;
-    }
+    setDeleteTarget({ mode: "many", ids: [...selected] });
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const payload =
+      deleteTarget.mode === "one"
+        ? { id: deleteTarget.id }
+        : { ids: deleteTarget.ids };
+    const count =
+      deleteTarget.mode === "one" ? 1 : deleteTarget.ids.length;
+
     setLoading(true);
     setMessage(null);
-    const ids = [...selected];
     const res = await fetch("/api/drafts", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify(payload),
     });
     setLoading(false);
     if (!res.ok) {
@@ -406,8 +393,20 @@ export default function DraftsPage() {
       setMessage(data.error || "Delete failed");
       return;
     }
-    setSelected(new Set());
-    setMessage(tf(t.drafts.deletedMany, { count: ids.length }));
+
+    if (deleteTarget.mode === "one") {
+      const id = deleteTarget.id;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setMessage(t.drafts.deleted);
+    } else {
+      setSelected(new Set());
+      setMessage(tf(t.drafts.deletedMany, { count }));
+    }
+    setDeleteTarget(null);
     await load();
   }
 
@@ -463,7 +462,7 @@ export default function DraftsPage() {
             disabled={!selected.size || loading}
             title={t.drafts.deleteSelected}
             aria-label={t.drafts.deleteSelected}
-            onClick={deleteSelected}
+            onClick={requestDeleteSelected}
           >
             <Trash2 size={16} strokeWidth={2} aria-hidden />
           </button>
@@ -637,7 +636,7 @@ export default function DraftsPage() {
                         disabled={loading}
                         title={t.drafts.deleteOne}
                         aria-label={t.drafts.deleteOne}
-                        onClick={() => deleteDraft(draft.id)}
+                        onClick={() => requestDeleteDraft(draft.id)}
                       >
                         <Trash2 size={16} strokeWidth={2} aria-hidden />
                       </button>
@@ -656,6 +655,61 @@ export default function DraftsPage() {
           </tbody>
         </table>
       </div>
+
+      {deleteTarget ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000a",
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            zIndex: 60,
+          }}
+          onClick={() => !loading && setDeleteTarget(null)}
+        >
+          <div
+            className="card stack"
+            style={{ width: "min(440px, 100%)" }}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-draft-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="delete-draft-title" style={{ margin: 0 }}>
+              {deleteTarget.mode === "one"
+                ? t.drafts.deleteConfirmTitle
+                : tf(t.drafts.deleteSelectedConfirmTitle, {
+                    count: deleteTarget.ids.length,
+                  })}
+            </h2>
+            <p className="muted" style={{ margin: 0 }}>
+              {deleteTarget.mode === "one"
+                ? t.drafts.deleteConfirm
+                : t.drafts.deleteSelectedConfirm}
+            </p>
+            <div className="row">
+              <button
+                className="btn btn-danger"
+                type="button"
+                disabled={loading}
+                onClick={confirmDelete}
+              >
+                {t.drafts.deleteConfirmAction}
+              </button>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={loading}
+                onClick={() => setDeleteTarget(null)}
+              >
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {addOpen ? (
         <div
