@@ -12,11 +12,11 @@
   --success: #3ecf8e;
   --warning: #f0b429;
   --danger: #f07178;
-  --scroll-size: 10px;
-  --scroll-track: color-mix(in srgb, var(--bg) 70%, transparent);
-  --scroll-thumb: color-mix(in srgb, var(--accent-soft) 75%, var(--border));
-  --scroll-thumb-hover: color-mix(in srgb, var(--accent) 70%, var(--accent-soft));
-  --scroll-thumb-active: var(--accent);
+  --scroll-size: 8px;
+  --scroll-track: #121820;
+  --scroll-thumb: #2a4a6a;
+  --scroll-thumb-hover: #3d9cf0;
+  --scroll-thumb-active: #5eb0f5;
 }
 
 @theme inline {
@@ -28,51 +28,92 @@
 
 * {
   box-sizing: border-box;
+}
+
+html,
+body,
+.custom-scroll,
+.tip-bubble-portal,
+textarea,
+.card,
+main,
+aside {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
 
-*::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.custom-scroll::-webkit-scrollbar,
+.tip-bubble-portal::-webkit-scrollbar,
+textarea::-webkit-scrollbar,
+.card::-webkit-scrollbar,
+main::-webkit-scrollbar,
+aside::-webkit-scrollbar {
   width: var(--scroll-size);
   height: var(--scroll-size);
 }
 
-*::-webkit-scrollbar-track {
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+.custom-scroll::-webkit-scrollbar-track,
+.tip-bubble-portal::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track,
+.card::-webkit-scrollbar-track,
+main::-webkit-scrollbar-track,
+aside::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: 999px;
-  margin: 2px;
 }
 
-*::-webkit-scrollbar-thumb {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent) 35%, var(--scroll-thumb)),
-      var(--scroll-thumb)
-    );
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+.custom-scroll::-webkit-scrollbar-thumb,
+.tip-bubble-portal::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb,
+.card::-webkit-scrollbar-thumb,
+main::-webkit-scrollbar-thumb,
+aside::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3a6a96, var(--scroll-thumb));
   border-radius: 999px;
-  border: 2px solid transparent;
+  border: 2px solid var(--scroll-track);
   background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent) 55%, var(--scroll-thumb-hover)),
-      var(--scroll-thumb-hover)
-    );
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+.custom-scroll::-webkit-scrollbar-thumb:hover,
+.tip-bubble-portal::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover,
+.card::-webkit-scrollbar-thumb:hover,
+main::-webkit-scrollbar-thumb:hover,
+aside::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--scroll-thumb-hover), #2f7ec4);
+  border: 2px solid var(--scroll-track);
   background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-*::-webkit-scrollbar-thumb:active {
+html::-webkit-scrollbar-thumb:active,
+body::-webkit-scrollbar-thumb:active,
+.custom-scroll::-webkit-scrollbar-thumb:active,
+.tip-bubble-portal::-webkit-scrollbar-thumb:active,
+textarea::-webkit-scrollbar-thumb:active,
+.card::-webkit-scrollbar-thumb:active,
+main::-webkit-scrollbar-thumb:active,
+aside::-webkit-scrollbar-thumb:active {
   background: var(--scroll-thumb-active);
+  border: 2px solid var(--scroll-track);
   background-clip: padding-box;
 }
 
-*::-webkit-scrollbar-corner {
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner,
+.custom-scroll::-webkit-scrollbar-corner,
+.tip-bubble-portal::-webkit-scrollbar-corner,
+textarea::-webkit-scrollbar-corner,
+.card::-webkit-scrollbar-corner,
+main::-webkit-scrollbar-corner,
+aside::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -291,6 +332,32 @@ button {
   font-size: 0.85rem;
   line-height: 1.45;
   pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+.tip-bubble-portal::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tip-bubble-portal::-webkit-scrollbar-track {
+  background: #121820;
+  border-radius: 999px;
+  margin: 4px 0;
+}
+
+.tip-bubble-portal::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #4a8ec8, #2a4a6a);
+  border-radius: 999px;
+  border: 2px solid #121820;
+  background-clip: padding-box;
+}
+
+.tip-bubble-portal::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #5eb0f5, #3d9cf0);
+  border: 2px solid #121820;
+  background-clip: padding-box;
 }
 
 .th-sort {
