@@ -28,93 +28,41 @@
 
 * {
   box-sizing: border-box;
-}
-
-html,
-body,
-.custom-scroll,
-.tip-bubble-portal,
-textarea,
-.card,
-main,
-aside {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar,
-.custom-scroll::-webkit-scrollbar,
-.tip-bubble-portal::-webkit-scrollbar,
-textarea::-webkit-scrollbar,
-.card::-webkit-scrollbar,
-main::-webkit-scrollbar,
-aside::-webkit-scrollbar {
-  width: var(--scroll-size);
-  height: var(--scroll-size);
+*::-webkit-scrollbar {
+  width: var(--scroll-size) !important;
+  height: var(--scroll-size) !important;
 }
 
-html::-webkit-scrollbar-track,
-body::-webkit-scrollbar-track,
-.custom-scroll::-webkit-scrollbar-track,
-.tip-bubble-portal::-webkit-scrollbar-track,
-textarea::-webkit-scrollbar-track,
-.card::-webkit-scrollbar-track,
-main::-webkit-scrollbar-track,
-aside::-webkit-scrollbar-track {
-  background: var(--scroll-track);
-  border-radius: 999px;
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track) !important;
+  border-radius: 999px !important;
 }
 
-html::-webkit-scrollbar-thumb,
-body::-webkit-scrollbar-thumb,
-.custom-scroll::-webkit-scrollbar-thumb,
-.tip-bubble-portal::-webkit-scrollbar-thumb,
-textarea::-webkit-scrollbar-thumb,
-.card::-webkit-scrollbar-thumb,
-main::-webkit-scrollbar-thumb,
-aside::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #3a6a96, var(--scroll-thumb));
-  border-radius: 999px;
-  border: 2px solid var(--scroll-track);
-  background-clip: padding-box;
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3a6a96, var(--scroll-thumb)) !important;
+  border-radius: 999px !important;
+  border: 2px solid var(--scroll-track) !important;
+  background-clip: padding-box !important;
 }
 
-html::-webkit-scrollbar-thumb:hover,
-body::-webkit-scrollbar-thumb:hover,
-.custom-scroll::-webkit-scrollbar-thumb:hover,
-.tip-bubble-portal::-webkit-scrollbar-thumb:hover,
-textarea::-webkit-scrollbar-thumb:hover,
-.card::-webkit-scrollbar-thumb:hover,
-main::-webkit-scrollbar-thumb:hover,
-aside::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--scroll-thumb-hover), #2f7ec4);
-  border: 2px solid var(--scroll-track);
-  background-clip: padding-box;
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--scroll-thumb-hover), #2f7ec4) !important;
+  border: 2px solid var(--scroll-track) !important;
+  background-clip: padding-box !important;
 }
 
-html::-webkit-scrollbar-thumb:active,
-body::-webkit-scrollbar-thumb:active,
-.custom-scroll::-webkit-scrollbar-thumb:active,
-.tip-bubble-portal::-webkit-scrollbar-thumb:active,
-textarea::-webkit-scrollbar-thumb:active,
-.card::-webkit-scrollbar-thumb:active,
-main::-webkit-scrollbar-thumb:active,
-aside::-webkit-scrollbar-thumb:active {
-  background: var(--scroll-thumb-active);
-  border: 2px solid var(--scroll-track);
-  background-clip: padding-box;
+*::-webkit-scrollbar-thumb:active {
+  background: var(--scroll-thumb-active) !important;
+  border: 2px solid var(--scroll-track) !important;
+  background-clip: padding-box !important;
 }
 
-html::-webkit-scrollbar-corner,
-body::-webkit-scrollbar-corner,
-.custom-scroll::-webkit-scrollbar-corner,
-.tip-bubble-portal::-webkit-scrollbar-corner,
-textarea::-webkit-scrollbar-corner,
-.card::-webkit-scrollbar-corner,
-main::-webkit-scrollbar-corner,
-aside::-webkit-scrollbar-corner {
-  background: transparent;
+*::-webkit-scrollbar-corner {
+  background: transparent !important;
 }
 
 body {
