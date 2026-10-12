@@ -6,9 +6,21 @@ import {
   getIntegrationKey,
   getSetting,
 } from "@/server/integrations/credentials";
-import { generateReelContent } from "@/server/integrations/openai";
+import {
+  generateReelContent,
+  isContentLanguage,
+  type ContentLanguage,
+} from "@/server/integrations/openai";
 import { removeStoragePaths } from "@/server/integrations/storage";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
+
+function parseDurationSec(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 5 || rounded > 90) return null;
+  return rounded;
+}
 
 async function generateDraftsForIdeas(params: {
   apiKey: string;
@@ -21,6 +33,8 @@ async function generateDraftsForIdeas(params: {
   }>;
   defaultBrandTone: string;
   defaultVisualStyle: string;
+  language: ContentLanguage;
+  targetDurationSec: number;
 }) {
   const created = [];
   const errors: Array<{ ideaId: string; error: string }> = [];
@@ -33,6 +47,8 @@ async function generateDraftsForIdeas(params: {
         brandTone: idea.brandTone || params.defaultBrandTone,
         globalStyle: idea.visualStyle || params.defaultVisualStyle,
         model: params.model,
+        language: params.language,
+        targetDurationSec: params.targetDurationSec,
       });
 
       const [draft] = await db
@@ -45,6 +61,7 @@ async function generateDraftsForIdeas(params: {
           hashtags: content.hashtags,
           cta: content.cta,
           visualStyle: content.visualStyle,
+          language: content.language,
           suggestedDurationSec: content.suggestedDurationSec,
           status: "draft",
         })
@@ -104,6 +121,17 @@ export async function POST(request: Request) {
           ? body.ideas.map(String).join("\n")
           : "";
 
+    const languageRaw = String(body.language ?? "").trim().toLowerCase();
+    if (!isContentLanguage(languageRaw)) {
+      return jsonError("language must be en or ua", 400);
+    }
+    const targetDurationSec = parseDurationSec(
+      body.suggestedDurationSec ?? body.targetDurationSec,
+    );
+    if (targetDurationSec == null) {
+      return jsonError("suggestedDurationSec must be between 5 and 90", 400);
+    }
+
     if (fromText.trim()) {
       const lines = parseIdeaLines(fromText);
       if (!lines.length) return jsonError("No ideas provided");
@@ -129,6 +157,8 @@ export async function POST(request: Request) {
         selectedIdeas: inserted,
         defaultBrandTone,
         defaultVisualStyle,
+        language: languageRaw,
+        targetDurationSec,
       });
 
       return jsonOk({ drafts: created, errors, ideasCreated: inserted.length });
@@ -153,6 +183,8 @@ export async function POST(request: Request) {
       selectedIdeas,
       defaultBrandTone,
       defaultVisualStyle,
+      language: languageRaw,
+      targetDurationSec,
     });
 
     return jsonOk({ drafts: created, errors });
@@ -187,7 +219,18 @@ export async function PATCH(request: Request) {
       updates.hashtags = body.hashtags.map(String);
     }
     if (body.suggestedDurationSec !== undefined) {
-      updates.suggestedDurationSec = Number(body.suggestedDurationSec);
+      const duration = parseDurationSec(body.suggestedDurationSec);
+      if (duration == null) {
+        return jsonError("suggestedDurationSec must be between 5 and 90", 400);
+      }
+      updates.suggestedDurationSec = duration;
+    }
+    if (body.language !== undefined) {
+      const language = String(body.language).trim().toLowerCase();
+      if (!isContentLanguage(language)) {
+        return jsonError("language must be en or ua", 400);
+      }
+      updates.language = language;
     }
 
     const [draft] = await db

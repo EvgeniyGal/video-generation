@@ -92,6 +92,7 @@ export const reelDrafts = pgTable("vc_reel_drafts", {
   hashtags: jsonb("hashtags").$type<string[]>().notNull().default([]),
   cta: text("cta").notNull().default(""),
   visualStyle: text("visual_style").notNull().default(""),
+  language: text("language").notNull().default("en"), // en | ua
   suggestedDurationSec: integer("suggested_duration_sec").default(30),
   status: text("status").notNull().default("draft"),
   // draft | approved | generating | ready | scheduled | posted | failed

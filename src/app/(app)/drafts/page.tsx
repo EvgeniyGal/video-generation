@@ -21,6 +21,7 @@ type Draft = {
   hashtags: string[];
   cta: string;
   visualStyle: string;
+  language: string;
   suggestedDurationSec: number | null;
   status: string;
   voiceId: string | null;
@@ -142,6 +143,8 @@ export default function DraftsPage() {
   const [ideasText, setIdeasText] = useState("");
   const [brandTone, setBrandTone] = useState("");
   const [visualStyle, setVisualStyle] = useState("");
+  const [contentLanguage, setContentLanguage] = useState<"en" | "ua">("ua");
+  const [estimatedDurationSec, setEstimatedDurationSec] = useState(30);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<
     null | { mode: "one"; id: string } | { mode: "many"; ids: string[] }
@@ -246,13 +249,23 @@ export default function DraftsPage() {
   async function createFromIdeas(e: FormEvent) {
     e.preventDefault();
     if (!ideasText.trim() || creating) return;
+    if (estimatedDurationSec < 5 || estimatedDurationSec > 90) {
+      setMessage(t.drafts.estimatedDurationHint);
+      return;
+    }
     setCreating(true);
     setMessage(null);
     try {
       const res = await fetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ideasText, brandTone, visualStyle }),
+        body: JSON.stringify({
+          ideasText,
+          brandTone,
+          visualStyle,
+          language: contentLanguage,
+          suggestedDurationSec: estimatedDurationSec,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -551,6 +564,12 @@ export default function DraftsPage() {
                 draft.visualStyle
                   ? `${t.drafts.visualStyleField}\n${draft.visualStyle}`
                   : "",
+                `${t.drafts.contentLanguage}\n${
+                  draft.language === "ua" ? t.drafts.langUa : t.drafts.langEn
+                }`,
+                draft.suggestedDurationSec
+                  ? `${t.drafts.estimatedDuration}\n${draft.suggestedDurationSec}s`
+                  : "",
                 (draft.hashtags ?? []).length
                   ? `${t.drafts.hashtags}\n${(draft.hashtags ?? [])
                       .map((h) => `#${h}`)
@@ -774,6 +793,51 @@ export default function DraftsPage() {
                 {t.drafts.styleHint}
               </div>
             </div>
+            <div className="row" style={{ alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <label className="label" htmlFor="draft-language">
+                  {t.drafts.contentLanguage} *
+                </label>
+                <select
+                  id="draft-language"
+                  className="select"
+                  required
+                  disabled={creating}
+                  value={contentLanguage}
+                  onChange={(e) =>
+                    setContentLanguage(e.target.value as "en" | "ua")
+                  }
+                >
+                  <option value="ua">{t.drafts.langUa}</option>
+                  <option value="en">{t.drafts.langEn}</option>
+                </select>
+                <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                  {t.drafts.contentLanguageHint}
+                </div>
+              </div>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <label className="label" htmlFor="draft-duration">
+                  {t.drafts.estimatedDuration} *
+                </label>
+                <input
+                  id="draft-duration"
+                  className="input"
+                  type="number"
+                  required
+                  min={5}
+                  max={90}
+                  step={1}
+                  disabled={creating}
+                  value={estimatedDurationSec}
+                  onChange={(e) =>
+                    setEstimatedDurationSec(Number(e.target.value) || 0)
+                  }
+                />
+                <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                  {t.drafts.estimatedDurationHint}
+                </div>
+              </div>
+            </div>
             <div className="row">
               <button className="btn" type="submit" disabled={creating}>
                 {creating ? (
@@ -861,6 +925,41 @@ export default function DraftsPage() {
                   })
                 }
               />
+            </div>
+            <div className="row" style={{ alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <label className="label">{t.drafts.contentLanguage}</label>
+                <select
+                  className="select"
+                  value={editing.language === "ua" ? "ua" : "en"}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      language: e.target.value,
+                    })
+                  }
+                >
+                  <option value="ua">{t.drafts.langUa}</option>
+                  <option value="en">{t.drafts.langEn}</option>
+                </select>
+              </div>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <label className="label">{t.drafts.estimatedDuration}</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={5}
+                  max={90}
+                  step={1}
+                  value={editing.suggestedDurationSec ?? 30}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      suggestedDurationSec: Number(e.target.value) || 30,
+                    })
+                  }
+                />
+              </div>
             </div>
             <div>
               <label className="label">{t.drafts.voice}</label>

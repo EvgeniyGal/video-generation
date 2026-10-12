@@ -69,6 +69,7 @@ export async function POST(request: Request) {
         cta: draft.cta,
         visualStyle: draft.visualStyle,
         suggestedDurationSec: draft.suggestedDurationSec ?? 30,
+        language: draft.language,
       });
 
       const session = await createVideoAgentSession(apiKey, {
