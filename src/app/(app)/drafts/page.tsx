@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Clapperboard, Pencil, Trash2 } from "lucide-react";
+import { Check, Clapperboard, Loader2, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -148,6 +148,7 @@ export default function DraftsPage() {
   >(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
@@ -244,29 +245,32 @@ export default function DraftsPage() {
 
   async function createFromIdeas(e: FormEvent) {
     e.preventDefault();
-    if (!ideasText.trim()) return;
-    setLoading(true);
+    if (!ideasText.trim() || creating) return;
+    setCreating(true);
     setMessage(null);
-    const res = await fetch("/api/drafts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ideasText, brandTone, visualStyle }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setMessage(data.error || "Failed");
-      return;
+    try {
+      const res = await fetch("/api/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideasText, brandTone, visualStyle }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error || "Failed");
+        return;
+      }
+      setMessage(
+        tf(t.drafts.created, { count: data.drafts?.length ?? 0 }) +
+          (data.errors?.length
+            ? tf(t.drafts.errors, { count: data.errors.length })
+            : ""),
+      );
+      setIdeasText("");
+      setAddOpen(false);
+      await load();
+    } finally {
+      setCreating(false);
     }
-    setMessage(
-      tf(t.drafts.created, { count: data.drafts?.length ?? 0 }) +
-        (data.errors?.length
-          ? tf(t.drafts.errors, { count: data.errors.length })
-          : ""),
-    );
-    setIdeasText("");
-    setAddOpen(false);
-    await load();
   }
 
   async function saveDraft() {
@@ -729,8 +733,10 @@ export default function DraftsPage() {
               width: "min(720px, 100%)",
               maxHeight: "90vh",
               overflow: "auto",
+              position: "relative",
             }}
             onSubmit={createFromIdeas}
+            aria-busy={creating}
           >
             <h2 style={{ margin: 0 }}>{t.drafts.addTitle}</h2>
             <div>
@@ -739,6 +745,7 @@ export default function DraftsPage() {
                 className="textarea"
                 style={{ minHeight: 160 }}
                 required
+                disabled={creating}
                 value={ideasText}
                 onChange={(e) => setIdeasText(e.target.value)}
                 placeholder={t.drafts.ideasPlaceholder}
@@ -748,6 +755,7 @@ export default function DraftsPage() {
               <label className="label">{t.drafts.brandTone}</label>
               <textarea
                 className="textarea"
+                disabled={creating}
                 value={brandTone}
                 onChange={(e) => setBrandTone(e.target.value)}
                 placeholder={t.drafts.brandPlaceholder}
@@ -757,6 +765,7 @@ export default function DraftsPage() {
               <label className="label">{t.drafts.visualStyle}</label>
               <textarea
                 className="textarea"
+                disabled={creating}
                 value={visualStyle}
                 onChange={(e) => setVisualStyle(e.target.value)}
                 placeholder={t.drafts.stylePlaceholder}
@@ -766,18 +775,40 @@ export default function DraftsPage() {
               </div>
             </div>
             <div className="row">
-              <button className="btn" type="submit" disabled={loading}>
-                {loading ? t.drafts.creating : t.drafts.create}
+              <button className="btn" type="submit" disabled={creating}>
+                {creating ? (
+                  <>
+                    <Loader2
+                      className="spin"
+                      size={16}
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    {t.drafts.creating}
+                  </>
+                ) : (
+                  t.drafts.create
+                )}
               </button>
               <button
                 className="btn btn-secondary"
                 type="button"
                 onClick={() => setAddOpen(false)}
-                disabled={loading}
+                disabled={creating}
               >
                 {t.cancel}
               </button>
             </div>
+
+            {creating ? (
+              <div className="ai-busy" role="status" aria-live="polite">
+                <Loader2 className="spin" size={36} strokeWidth={2} aria-hidden />
+                <div style={{ fontWeight: 600 }}>{t.drafts.creating}</div>
+                <div className="muted" style={{ fontSize: "0.9rem", textAlign: "center" }}>
+                  {t.drafts.creatingHint}
+                </div>
+              </div>
+            ) : null}
           </form>
         </div>
       ) : null}
