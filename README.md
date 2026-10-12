@@ -24,7 +24,7 @@ npm run db:migrate
 
 Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000` → `0001` → `0002` → `0003` → `0004`).
 
-**FFmpeg (Slideshow video):** Install FFmpeg so `ffmpeg` and `ffprobe` are on your PATH (Windows: `winget install Gyan.FFmpeg`), then restart `npm run dev:server`.
+**FFmpeg (Slideshow video):** Locally, install FFmpeg so `ffmpeg` and `ffprobe` are on your PATH (Windows: `winget install Gyan.FFmpeg`), then restart `npm run dev:server`. Docker images already include FFmpeg (see `Dockerfile` / `docker compose up --build`).
 
 **RLS:** All `vc_*` tables have Row Level Security enabled with no policies for `anon` / `authenticated`. That clears Supabase’s “RLS disabled” warning and blocks accidental PostgREST access. This app talks to Postgres via Drizzle (`DIRECT_URL` / `DATABASE_URL`) and Storage via the **service role** — both bypass RLS. Do not add open `anon` policies on these tables.
 
@@ -42,10 +42,10 @@ npm run start:server
 npm run dev:server
 ```
 
-6. Docker:
+6. Docker (production-style; image includes FFmpeg + fonts for Slideshow karaoke):
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 ## Workflow

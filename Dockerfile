@@ -17,9 +17,18 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# ffmpeg/ffprobe for Slideshow renders; Liberation Sans covers ASS "Arial"
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl \
+  && apt-get install -y --no-install-recommends \
+    curl \
+    ffmpeg \
+    fontconfig \
+    fonts-dejavu-core \
+    fonts-liberation \
+  && fc-cache -f \
   && rm -rf /var/lib/apt/lists/* \
+  && ffmpeg -version \
+  && ffprobe -version \
   && groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs
 

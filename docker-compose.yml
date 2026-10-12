@@ -1,13 +1,23 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: video-generation:latest
     ports:
       - "3000:3000"
     env_file:
       - .env
+    # Slideshow jobs need writable temp for ffmpeg work dirs
+    tmpfs:
+      - /tmp:size=2g,mode=1777
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:3000/api/health && ffmpeg -version >/dev/null && ffprobe -version >/dev/null",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
