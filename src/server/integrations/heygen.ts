@@ -225,3 +225,78 @@ export async function getVideo(apiKey: string, videoId: string) {
     error?: string;
   }>(apiKey, `/v3/videos/${videoId}`);
 }
+
+export type HeyGenUserMe = {
+  username?: string;
+  email?: string;
+  billing_type?: "wallet" | "subscription" | "usage_based" | string | null;
+  wallet?: {
+    currency?: string | null;
+    remaining_balance?: number | null;
+  } | null;
+  subscription?: {
+    plan?: string | null;
+    credits?: {
+      premium_credits?: { remaining?: number | null; resets_at?: string | null };
+      add_on_credits?: { remaining?: number | null; resets_at?: string | null };
+    } | null;
+  } | null;
+  usage_based?: {
+    spending_current_usd?: number | null;
+    spending_cap_usd?: number | null;
+    included_credits?: number | null;
+    remaining_credits?: number | null;
+  } | null;
+};
+
+export async function getHeyGenCurrentUser(apiKey: string) {
+  return heygenFetch<HeyGenUserMe>(apiKey, "/v3/users/me");
+}
+
+/** Normalize HeyGen billing into a short remaining balance summary. */
+export function summarizeHeyGenCredits(user: HeyGenUserMe): {
+  remainingLabel: string;
+  detail?: string;
+} {
+  const type = user.billing_type ?? null;
+  if (type === "wallet" && user.wallet) {
+    const bal = user.wallet.remaining_balance;
+    const currency = (user.wallet.currency || "usd").toUpperCase();
+    return {
+      remainingLabel:
+        bal == null ? "—" : `${formatNum(bal)} ${currency}`,
+      detail: "wallet",
+    };
+  }
+  if (type === "subscription" && user.subscription) {
+    const premium = user.subscription.credits?.premium_credits?.remaining ?? 0;
+    const addon = user.subscription.credits?.add_on_credits?.remaining ?? 0;
+    const total = Number(premium) + Number(addon);
+    return {
+      remainingLabel: `${formatNum(total)} credits`,
+      detail: user.subscription.plan
+        ? `plan: ${user.subscription.plan}`
+        : undefined,
+    };
+  }
+  if (type === "usage_based" && user.usage_based) {
+    const rem = user.usage_based.remaining_credits;
+    const spent = user.usage_based.spending_current_usd;
+    const cap = user.usage_based.spending_cap_usd;
+    return {
+      remainingLabel:
+        rem != null ? `${formatNum(rem)} credits` : "usage-based",
+      detail:
+        spent != null && cap != null
+          ? `spent $${formatNum(spent)} / cap $${formatNum(cap)}`
+          : undefined,
+    };
+  }
+  return { remainingLabel: "—" };
+}
+
+function formatNum(n: number) {
+  return Number.isInteger(n)
+    ? n.toLocaleString()
+    : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}

@@ -47,6 +47,49 @@ export async function listElevenLabsVoices(
   );
 }
 
+export type ElevenLabsSubscription = {
+  tier?: string;
+  character_count?: number;
+  character_limit?: number;
+  status?: string;
+  next_character_count_reset_unix?: number | null;
+};
+
+export async function getElevenLabsSubscription(apiKey: string) {
+  return elevenFetch<ElevenLabsSubscription>(apiKey, "/user/subscription");
+}
+
+export function summarizeElevenLabsCredits(sub: ElevenLabsSubscription): {
+  remaining: number | null;
+  used: number | null;
+  limit: number | null;
+  remainingLabel: string;
+  detail?: string;
+} {
+  const used = sub.character_count ?? null;
+  const limit = sub.character_limit ?? null;
+  const remaining =
+    used != null && limit != null ? Math.max(0, limit - used) : null;
+  const parts: string[] = [];
+  if (sub.tier) parts.push(sub.tier);
+  if (sub.next_character_count_reset_unix) {
+    const d = new Date(sub.next_character_count_reset_unix * 1000);
+    if (!Number.isNaN(d.getTime())) {
+      parts.push(`resets ${d.toLocaleDateString()}`);
+    }
+  }
+  return {
+    remaining,
+    used,
+    limit,
+    remainingLabel:
+      remaining != null && limit != null
+        ? `${remaining.toLocaleString()} / ${limit.toLocaleString()} credits`
+        : "—",
+    detail: parts.length ? parts.join(" · ") : undefined,
+  };
+}
+
 export async function synthesizeSpeech(params: {
   apiKey: string;
   voiceId: string;
