@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { DateTimeFields, TimeField } from "@/components/DateTimeFields";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   buildCadenceSlots,
@@ -579,16 +580,13 @@ export default function SchedulePage() {
                 onChange={(e) => setText(e.target.value)}
               />
             </div>
-            <div>
-              <label className="label">{t.schedule.dueAt}</label>
-              <input
-                className="input"
-                type="datetime-local"
-                required
-                value={dueAtLocal}
-                onChange={(e) => setDueAtLocal(e.target.value)}
-              />
-            </div>
+            <DateTimeFields
+              required
+              value={dueAtLocal}
+              onChange={setDueAtLocal}
+              dateLabel={t.schedule.dueDate}
+              timeLabel={t.schedule.dueTime}
+            />
           </>
         ) : null}
 
@@ -597,51 +595,41 @@ export default function SchedulePage() {
             <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
               {t.schedule.alreadyScheduledHint}
             </p>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <div style={{ flex: 2, minWidth: 220 }}>
-                <label className="label">{t.schedule.startAt}</label>
-                <input
-                  className="input"
-                  type="datetime-local"
-                  required
-                  value={startAtLocal}
-                  onChange={(e) => setStartAtLocal(e.target.value)}
-                />
-              </div>
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <label className="label">{t.schedule.postsPerDay}</label>
-                <select
-                  className="select"
-                  value={postsPerDay}
-                  onChange={(e) =>
-                    setPostsPerDay(Number(e.target.value) as 1 | 2 | 3)
-                  }
-                >
-                  <option value={1}>1</option>
-                  <option value={2}>2</option>
-                  <option value={3}>3</option>
-                </select>
-              </div>
+            <DateTimeFields
+              required
+              value={startAtLocal}
+              onChange={setStartAtLocal}
+              dateLabel={t.schedule.startAtDate}
+              timeLabel={t.schedule.startAtTime}
+            />
+            <div style={{ maxWidth: 220 }}>
+              <label className="label">{t.schedule.postsPerDay}</label>
+              <select
+                className="select"
+                value={postsPerDay}
+                onChange={(e) =>
+                  setPostsPerDay(Number(e.target.value) as 1 | 2 | 3)
+                }
+              >
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+              </select>
             </div>
             {postsPerDay > 1 ? (
               <div className="row" style={{ flexWrap: "wrap" }}>
                 {Array.from({ length: postsPerDay - 1 }, (_, idx) => (
-                  <div key={idx} style={{ flex: 1, minWidth: 120 }}>
-                    <label className="label">
-                      {tf(t.schedule.slotTime, { n: idx + 2 })}
-                    </label>
-                    <input
-                      className="input"
-                      type="time"
-                      required
-                      value={extraSlotTimes[idx] || "09:00"}
-                      onChange={(e) => {
-                        const next = [...extraSlotTimes];
-                        next[idx] = e.target.value;
-                        setExtraSlotTimes(next);
-                      }}
-                    />
-                  </div>
+                  <TimeField
+                    key={idx}
+                    required
+                    label={tf(t.schedule.slotTime, { n: idx + 2 })}
+                    value={extraSlotTimes[idx] || "09:00"}
+                    onChange={(next) => {
+                      const copy = [...extraSlotTimes];
+                      copy[idx] = next;
+                      setExtraSlotTimes(copy);
+                    }}
+                  />
                 ))}
               </div>
             ) : null}
