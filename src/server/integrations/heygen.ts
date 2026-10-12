@@ -104,7 +104,11 @@ async function listAllPages<T>(
   const all: T[] = [];
   let token: string | null = null;
   for (let page = 0; page < maxPages; page += 1) {
-    const result = await heygenListPage<T>(apiKey, buildPath(token));
+    const result: {
+      items: T[];
+      hasMore: boolean;
+      nextToken: string | null;
+    } = await heygenListPage<T>(apiKey, buildPath(token));
     all.push(...result.items);
     if (!result.hasMore || !result.nextToken) break;
     token = result.nextToken;

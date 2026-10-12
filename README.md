@@ -1,6 +1,6 @@
 # Reels Studio
 
-Personal tool to draft viral reel content (OpenAI), generate videos on demand (HeyGen Video Agent), schedule to multiple Buffer accounts, and sync post metrics daily.
+Personal tool to draft viral reel content (OpenAI), generate videos on demand (HeyGen Video Agent or Slideshow: OpenAI images + ElevenLabs + FFmpeg), schedule to multiple Buffer accounts, and sync post metrics daily.
 
 ## Stack
 
@@ -22,7 +22,9 @@ npm install
 npm run db:migrate
 ```
 
-Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000` → `0001` → `0002`).
+Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000` → `0001` → `0002` → `0003` → `0004`).
+
+**FFmpeg (Slideshow video):** Install FFmpeg so `ffmpeg` and `ffprobe` are on your PATH (Windows: `winget install Gyan.FFmpeg`), then restart `npm run dev:server`.
 
 **RLS:** All `vc_*` tables have Row Level Security enabled with no policies for `anon` / `authenticated`. That clears Supabase’s “RLS disabled” warning and blocks accidental PostgREST access. This app talks to Postgres via Drizzle (`DIRECT_URL` / `DATABASE_URL`) and Storage via the **service role** — both bypass RLS. Do not add open `anon` policies on these tables.
 
@@ -32,10 +34,12 @@ Or run the SQL files in [`drizzle/`](drizzle/) in the Supabase SQL editor (`0000
 npm run dev
 ```
 
-Or run the custom server (includes HeyGen poll + daily metrics cron):
+Or run the custom server (includes HeyGen poll, Slideshow jobs, + daily metrics cron):
 
 ```bash
 npm run start:server
+# or during development:
+npm run dev:server
 ```
 
 6. Docker:
@@ -46,10 +50,10 @@ docker compose up --build
 
 ## Workflow
 
-1. **Settings** — save OpenAI / HeyGen keys; connect Buffer personal API keys (one per free account, ~3 channels each).
+1. **Settings** — save OpenAI / HeyGen / ElevenLabs keys; pick chat + image models; connect Buffer personal API keys (one per free account, ~3 channels each).
 2. **Ideas** — add many reel ideas; **Prepare content** (OpenAI only).
-3. **Drafts** — edit, pick voice, approve; **Generate videos** explicitly.
-4. **Videos** — wait for HeyGen; MP4 is re-hosted to public Supabase Storage.
+3. **Drafts** — edit content, approve; **Generate video** → choose **HeyGen video** or **Slideshow video** and type-specific options.
+4. **Videos** — wait for render; MP4 is re-hosted to public Supabase Storage.
 5. **Schedule** — choose Buffer account channel → queue or custom time.
 6. **Analytics** — daily 06:00 UTC sync (or Sync now).
 

@@ -28,6 +28,7 @@ try {
     "drizzle/0001_ideas_tone_style.sql",
     "drizzle/0002_enable_rls.sql",
     "drizzle/0003_draft_language.sql",
+    "drizzle/0004_slideshow_video.sql",
   ];
   for (const relative of files) {
     const file = resolve(relative);

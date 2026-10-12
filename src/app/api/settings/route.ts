@@ -21,9 +21,14 @@ export async function GET() {
     return jsonOk({
       openaiConfigured: await hasIntegrationKey("openai"),
       heygenConfigured: await hasIntegrationKey("heygen"),
+      elevenlabsConfigured: await hasIntegrationKey("elevenlabs"),
       brandTone: await getSetting("brand_tone"),
       globalStyle: await getSetting("global_style"),
       openaiModel: await getSetting("openai_model", "gpt-4.1-mini"),
+      openaiImageModel: await getSetting(
+        "openai_image_model",
+        "gpt-image-2.5-flare",
+      ),
       bufferAccounts: accounts.map((a) => ({
         id: a.id,
         label: a.label,
@@ -47,6 +52,12 @@ export async function PUT(request: Request) {
     if (typeof body.heygenApiKey === "string" && body.heygenApiKey.trim()) {
       await setIntegrationKey("heygen", body.heygenApiKey);
     }
+    if (
+      typeof body.elevenlabsApiKey === "string" &&
+      body.elevenlabsApiKey.trim()
+    ) {
+      await setIntegrationKey("elevenlabs", body.elevenlabsApiKey);
+    }
     if (typeof body.brandTone === "string") {
       await setSetting("brand_tone", body.brandTone);
     }
@@ -55,6 +66,12 @@ export async function PUT(request: Request) {
     }
     if (typeof body.openaiModel === "string" && body.openaiModel.trim()) {
       await setSetting("openai_model", body.openaiModel.trim());
+    }
+    if (
+      typeof body.openaiImageModel === "string" &&
+      body.openaiImageModel.trim()
+    ) {
+      await setSetting("openai_image_model", body.openaiImageModel.trim());
     }
 
     return jsonOk({ ok: true });

@@ -51,6 +51,19 @@ type GroupedList<T> = {
   general: T[];
 };
 
+type ElevenLabsVoice = {
+  voice_id: string;
+  name: string;
+  category?: string;
+  labels?: Record<string, string>;
+};
+
+type GenerateTarget =
+  | { mode: "one"; id: string }
+  | { mode: "many"; ids: string[] };
+
+type VideoGenType = "heygen" | "slideshow";
+
 type SortKey = "caption" | "status" | "createdAt";
 type SortDir = "asc" | "desc";
 
@@ -172,6 +185,17 @@ export default function DraftsPage() {
   const [deleteTarget, setDeleteTarget] = useState<
     null | { mode: "one"; id: string } | { mode: "many"; ids: string[] }
   >(null);
+  const [generateTarget, setGenerateTarget] = useState<GenerateTarget | null>(
+    null,
+  );
+  const [genType, setGenType] = useState<VideoGenType>("heygen");
+  const [genVoiceId, setGenVoiceId] = useState("");
+  const [genAvatarId, setGenAvatarId] = useState("");
+  const [genElevenVoiceId, setGenElevenVoiceId] = useState("");
+  const [genSceneCount, setGenSceneCount] = useState(4);
+  const [genConsistentCharacter, setGenConsistentCharacter] = useState(true);
+  const [genSubtitles, setGenSubtitles] = useState(true);
+  const [elevenVoices, setElevenVoices] = useState<ElevenLabsVoice[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -188,9 +212,21 @@ export default function DraftsPage() {
 
   useEffect(() => {
     load();
+    fetch("/api/elevenlabs/voices")
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = (await r.json()) as { voices?: ElevenLabsVoice[] };
+        setElevenVoices(d.voices ?? []);
+      })
+      .catch(() => setElevenVoices([]));
     fetch("/api/heygen/voices")
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((d) => {
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = (await r.json()) as {
+          voices?: Voice[];
+          voicesGrouped?: GroupedList<Voice>;
+          avatarsGrouped?: GroupedList<AvatarLook>;
+        };
         if (d.voicesGrouped) {
           setVoicesGrouped({
             own: d.voicesGrouped.own ?? [],
@@ -375,32 +411,66 @@ export default function DraftsPage() {
     await load();
   }
 
-  async function generateDraft(id: string) {
-    setLoading(true);
-    setMessage(null);
-    const res = await fetch("/api/videos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draftIds: [id] }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setMessage(data.error || "Generate failed");
-      return;
-    }
-    setMessage(tf(t.drafts.started, { count: data.videos?.length ?? 0 }));
-    await load();
+  function openGenerateOne(id: string) {
+    const draft = drafts.find((d) => d.id === id);
+    setGenVoiceId(draft?.voiceId ?? "");
+    setGenAvatarId(draft?.avatarId ?? "");
+    setGenType("heygen");
+    setGenSceneCount(4);
+    setGenConsistentCharacter(true);
+    setGenSubtitles(true);
+    setGenerateTarget({ mode: "one", id });
   }
 
-  async function generateSelected() {
+  function openGenerateSelected() {
     if (!selected.size) return;
+    const first = drafts.find((d) => selected.has(d.id));
+    setGenVoiceId(first?.voiceId ?? "");
+    setGenAvatarId(first?.avatarId ?? "");
+    setGenType("heygen");
+    setGenSceneCount(4);
+    setGenConsistentCharacter(true);
+    setGenSubtitles(true);
+    setGenerateTarget({ mode: "many", ids: [...selected] });
+  }
+
+  async function confirmGenerate() {
+    if (!generateTarget) return;
+    const draftIds =
+      generateTarget.mode === "one"
+        ? [generateTarget.id]
+        : generateTarget.ids;
+
     setLoading(true);
     setMessage(null);
+
+    const body =
+      genType === "heygen"
+        ? {
+            draftIds,
+            type: "heygen" as const,
+            voiceId: genVoiceId || null,
+            avatarId: genAvatarId || null,
+          }
+        : {
+            draftIds,
+            type: "slideshow" as const,
+            elevenLabsVoiceId: genElevenVoiceId,
+            sceneCount: genSceneCount,
+            consistentCharacter: genConsistentCharacter,
+            subtitles: genSubtitles,
+          };
+
+    if (genType === "slideshow" && !genElevenVoiceId) {
+      setLoading(false);
+      setMessage(t.drafts.elevenLabsVoiceDefault);
+      return;
+    }
+
     const res = await fetch("/api/videos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draftIds: [...selected] }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setLoading(false);
@@ -414,7 +484,8 @@ export default function DraftsPage() {
           ? tf(t.drafts.errors, { count: data.errors.length })
           : ""),
     );
-    setSelected(new Set());
+    setGenerateTarget(null);
+    if (generateTarget.mode === "many") setSelected(new Set());
     await load();
   }
 
@@ -508,7 +579,7 @@ export default function DraftsPage() {
             disabled={!selected.size || loading}
             title={`${t.drafts.generate} (${selected.size})`}
             aria-label={`${t.drafts.generate} (${selected.size})`}
-            onClick={generateSelected}
+            onClick={openGenerateSelected}
           >
             <Clapperboard size={16} strokeWidth={2} aria-hidden />
           </button>
@@ -688,7 +759,7 @@ export default function DraftsPage() {
                         disabled={loading || !canAct(draft.status)}
                         title={t.drafts.generateOne}
                         aria-label={t.drafts.generateOne}
-                        onClick={() => generateDraft(draft.id)}
+                        onClick={() => openGenerateOne(draft.id)}
                       >
                         <Clapperboard size={16} strokeWidth={2} aria-hidden />
                       </button>
@@ -1000,91 +1071,6 @@ export default function DraftsPage() {
                 />
               </div>
             </div>
-            <div>
-              <label className="label">{t.drafts.voice}</label>
-              <select
-                className="select"
-                value={editing.voiceId ?? ""}
-                onChange={(e) =>
-                  setEditing({ ...editing, voiceId: e.target.value || null })
-                }
-              >
-                <option value="">{t.drafts.voiceDefault}</option>
-                {editing.voiceId &&
-                ![...voicesGrouped.own, ...voicesGrouped.general].some(
-                  (v) => v.voice_id === editing.voiceId,
-                ) ? (
-                  <option value={editing.voiceId}>{editing.voiceId}</option>
-                ) : null}
-                {voicesGrouped.own.length ? (
-                  <optgroup label={t.drafts.voiceOwn}>
-                    {voicesGrouped.own.map((v) => (
-                      <option key={v.voice_id} value={v.voice_id}>
-                        {v.name || v.voice_id}
-                        {v.language ? ` (${v.language})` : ""}
-                        {v.gender ? ` · ${v.gender}` : ""}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-                {voicesGrouped.general.length ? (
-                  <optgroup label={t.drafts.voiceGeneral}>
-                    {voicesGrouped.general.map((v) => (
-                      <option key={v.voice_id} value={v.voice_id}>
-                        {v.name || v.voice_id}
-                        {v.language ? ` (${v.language})` : ""}
-                        {v.gender ? ` · ${v.gender}` : ""}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-            </div>
-            <div>
-              <label className="label">{t.drafts.avatarId}</label>
-              <select
-                className="select"
-                value={editing.avatarId ?? ""}
-                onChange={(e) =>
-                  setEditing({ ...editing, avatarId: e.target.value || null })
-                }
-              >
-                <option value="">{t.drafts.avatarDefault}</option>
-                {editing.avatarId &&
-                ![...avatarsGrouped.own, ...avatarsGrouped.general].some(
-                  (a) => a.id === editing.avatarId,
-                ) ? (
-                  <option value={editing.avatarId}>{editing.avatarId}</option>
-                ) : null}
-                {avatarsGrouped.own.length ? (
-                  <optgroup label={t.drafts.avatarOwn}>
-                    {avatarsGrouped.own.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name || a.id}
-                        {a.gender ? ` · ${a.gender}` : ""}
-                        {a.avatar_type ? ` · ${a.avatar_type}` : ""}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-                {avatarsGrouped.general.length ? (
-                  <optgroup label={t.drafts.avatarGeneral}>
-                    {avatarsGrouped.general.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name || a.id}
-                        {a.gender ? ` · ${a.gender}` : ""}
-                        {a.avatar_type ? ` · ${a.avatar_type}` : ""}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-              {!avatarsGrouped.own.length && !avatarsGrouped.general.length ? (
-                <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
-                  {t.drafts.avatarEmpty}
-                </div>
-              ) : null}
-            </div>
             <div className="row">
               <button className="btn" onClick={saveDraft} disabled={loading}>
                 {t.save}
@@ -1092,6 +1078,231 @@ export default function DraftsPage() {
               <button
                 className="btn btn-secondary"
                 onClick={() => setEditing(null)}
+              >
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {generateTarget ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000a",
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            zIndex: 50,
+          }}
+        >
+          <div
+            className="card stack"
+            style={{
+              width: "min(560px, 100%)",
+              maxHeight: "90vh",
+              overflow: "auto",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>
+              {generateTarget.mode === "one"
+                ? t.drafts.generateTitle
+                : tf(t.drafts.generateTitleMany, {
+                    count: generateTarget.ids.length,
+                  })}
+            </h2>
+
+            <div>
+              <label className="label">{t.drafts.generateType}</label>
+              <select
+                className="select"
+                value={genType}
+                onChange={(e) => setGenType(e.target.value as VideoGenType)}
+              >
+                <option value="heygen">{t.drafts.typeHeygen}</option>
+                <option value="slideshow">{t.drafts.typeSlideshow}</option>
+              </select>
+              <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
+                {genType === "heygen"
+                  ? t.drafts.typeHeygenHint
+                  : t.drafts.typeSlideshowHint}
+              </div>
+            </div>
+
+            {genType === "heygen" ? (
+              <>
+                <div>
+                  <label className="label">{t.drafts.voice}</label>
+                  <select
+                    className="select"
+                    value={genVoiceId}
+                    onChange={(e) => setGenVoiceId(e.target.value)}
+                  >
+                    <option value="">{t.drafts.voiceDefault}</option>
+                    {voicesGrouped.own.length ? (
+                      <optgroup label={t.drafts.voiceOwn}>
+                        {voicesGrouped.own.map((v) => (
+                          <option key={v.voice_id} value={v.voice_id}>
+                            {v.name || v.voice_id}
+                            {v.language ? ` (${v.language})` : ""}
+                            {v.gender ? ` · ${v.gender}` : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {voicesGrouped.general.length ? (
+                      <optgroup label={t.drafts.voiceGeneral}>
+                        {voicesGrouped.general.map((v) => (
+                          <option key={v.voice_id} value={v.voice_id}>
+                            {v.name || v.voice_id}
+                            {v.language ? ` (${v.language})` : ""}
+                            {v.gender ? ` · ${v.gender}` : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">{t.drafts.avatarId}</label>
+                  <select
+                    className="select"
+                    value={genAvatarId}
+                    onChange={(e) => setGenAvatarId(e.target.value)}
+                  >
+                    <option value="">{t.drafts.avatarDefault}</option>
+                    {avatarsGrouped.own.length ? (
+                      <optgroup label={t.drafts.avatarOwn}>
+                        {avatarsGrouped.own.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name || a.id}
+                            {a.gender ? ` · ${a.gender}` : ""}
+                            {a.avatar_type ? ` · ${a.avatar_type}` : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {avatarsGrouped.general.length ? (
+                      <optgroup label={t.drafts.avatarGeneral}>
+                        {avatarsGrouped.general.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name || a.id}
+                            {a.gender ? ` · ${a.gender}` : ""}
+                            {a.avatar_type ? ` · ${a.avatar_type}` : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                  {!avatarsGrouped.own.length &&
+                  !avatarsGrouped.general.length ? (
+                    <div
+                      className="muted"
+                      style={{ fontSize: "0.8rem", marginTop: 6 }}
+                    >
+                      {t.drafts.avatarEmpty}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="label">{t.drafts.elevenLabsVoice}</label>
+                  <select
+                    className="select"
+                    value={genElevenVoiceId}
+                    onChange={(e) => setGenElevenVoiceId(e.target.value)}
+                  >
+                    <option value="">{t.drafts.elevenLabsVoiceDefault}</option>
+                    {elevenVoices.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        {v.name || v.voice_id}
+                        {v.labels?.language
+                          ? ` (${v.labels.language})`
+                          : ""}
+                        {v.category ? ` · ${v.category}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">{t.drafts.sceneCount}</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={3}
+                    max={8}
+                    step={1}
+                    value={genSceneCount}
+                    onChange={(e) =>
+                      setGenSceneCount(
+                        Math.min(8, Math.max(3, Number(e.target.value) || 4)),
+                      )
+                    }
+                  />
+                  <div
+                    className="muted"
+                    style={{ fontSize: "0.8rem", marginTop: 6 }}
+                  >
+                    {t.drafts.sceneCountHint}
+                  </div>
+                </div>
+                <label
+                  className="row"
+                  style={{ gap: 8, alignItems: "flex-start" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={genConsistentCharacter}
+                    onChange={(e) =>
+                      setGenConsistentCharacter(e.target.checked)
+                    }
+                    style={{ marginTop: 4 }}
+                  />
+                  <span>
+                    <strong>{t.drafts.consistentCharacter}</strong>
+                    <div className="muted" style={{ fontSize: "0.85rem" }}>
+                      {t.drafts.consistentCharacterHint}
+                    </div>
+                  </span>
+                </label>
+                <label
+                  className="row"
+                  style={{ gap: 8, alignItems: "flex-start" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={genSubtitles}
+                    onChange={(e) => setGenSubtitles(e.target.checked)}
+                    style={{ marginTop: 4 }}
+                  />
+                  <span>
+                    <strong>{t.drafts.subtitles}</strong>
+                    <div className="muted" style={{ fontSize: "0.85rem" }}>
+                      {t.drafts.subtitlesHint}
+                    </div>
+                  </span>
+                </label>
+              </>
+            )}
+
+            <div className="row">
+              <button
+                className="btn"
+                type="button"
+                disabled={loading}
+                onClick={confirmGenerate}
+              >
+                {t.drafts.startGenerate}
+              </button>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={loading}
+                onClick={() => setGenerateTarget(null)}
               >
                 {t.cancel}
               </button>

@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or, isNull } from "drizzle-orm";
 import { db } from "@/server/db";
 import { reelDrafts, videos } from "@/server/db/schema";
 import { getIntegrationKey } from "@/server/integrations/credentials";
@@ -16,13 +16,17 @@ export async function pollHeyGenJobs() {
   if (!apiKey) return { processed: 0, reason: "no_heygen_key" as const };
 
   const pending = await db.query.videos.findMany({
-    where: inArray(videos.status, ["pending", "generating"]),
+    where: and(
+      inArray(videos.status, ["pending", "generating"]),
+      or(eq(videos.provider, "heygen"), isNull(videos.provider)),
+    ),
   });
 
   let processed = 0;
 
   for (const video of pending) {
     try {
+      if (video.provider === "slideshow") continue;
       if (!video.heygenSessionId) continue;
 
       let videoId = video.heygenVideoId;

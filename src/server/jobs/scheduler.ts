@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { pollHeyGenJobs } from "./poll-heygen";
+import { processPendingSlideshowJobs } from "./run-slideshow";
 import { syncBufferMetrics } from "./sync-buffer-metrics";
 
 let started = false;
@@ -17,6 +18,18 @@ export function startBackgroundJobs() {
       }
     } catch (err) {
       console.error("[jobs] heygen poll error", err);
+    }
+  });
+
+  // Pick up pending slideshow jobs (also kicked immediately on enqueue)
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      const result = await processPendingSlideshowJobs();
+      if (result.processed > 0) {
+        console.log(`[jobs] slideshow processed=${result.processed}`);
+      }
+    } catch (err) {
+      console.error("[jobs] slideshow poll error", err);
     }
   });
 

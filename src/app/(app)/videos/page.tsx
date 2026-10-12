@@ -7,6 +7,7 @@ import { useLocale } from "@/i18n/LocaleProvider";
 type VideoRow = {
   id: string;
   status: string;
+  provider?: string | null;
   publicUrl: string | null;
   thumbnailUrl: string | null;
   duration: number | null;
@@ -73,6 +74,10 @@ export default function VideosPage() {
             <div className="row" style={{ justifyContent: "space-between" }}>
               <StatusBadge status={video.status} />
               <span className="muted" style={{ fontSize: "0.8rem" }}>
+                {video.provider === "slideshow"
+                  ? t.videos.providerSlideshow
+                  : t.videos.providerHeygen}
+                {" · "}
                 {video.duration ? `${Math.round(video.duration)}s` : "—"}
               </span>
             </div>
@@ -116,7 +121,9 @@ export default function VideosPage() {
               </div>
             ) : null}
             <div className="muted" style={{ fontSize: "0.75rem" }}>
-              {t.videos.session}: {video.heygenSessionId || "—"}
+              {video.provider === "slideshow"
+                ? `${t.videos.provider}: ${t.videos.providerSlideshow}`
+                : `${t.videos.session}: ${video.heygenSessionId || "—"}`}
             </div>
           </div>
         ))}

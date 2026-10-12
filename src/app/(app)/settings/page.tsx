@@ -6,7 +6,9 @@ import { useLocale } from "@/i18n/LocaleProvider";
 type Settings = {
   openaiConfigured: boolean;
   heygenConfigured: boolean;
+  elevenlabsConfigured: boolean;
   openaiModel: string;
+  openaiImageModel: string;
   bufferAccounts: Array<{
     id: string;
     label: string;
@@ -20,10 +22,17 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [heygenApiKey, setHeygenApiKey] = useState("");
+  const [elevenlabsApiKey, setElevenlabsApiKey] = useState("");
   const [openaiModel, setOpenaiModel] = useState("gpt-4.1-mini");
+  const [openaiImageModel, setOpenaiImageModel] = useState(
+    "gpt-image-2.5-flare",
+  );
   const [openaiModels, setOpenaiModels] = useState<string[]>([]);
+  const [imageModels, setImageModels] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [imageModelsLoading, setImageModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [imageModelsError, setImageModelsError] = useState<string | null>(null);
   const [bufferLabel, setBufferLabel] = useState("");
   const [bufferApiKey, setBufferApiKey] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -55,22 +64,73 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const loadImageModels = useCallback(async () => {
+    setImageModelsLoading(true);
+    setImageModelsError(null);
+    try {
+      const res = await fetch("/api/openai/models?kind=image");
+      const data = await res.json();
+      if (!res.ok) {
+        setImageModels([]);
+        setImageModelsError(data.error || "Failed to load image models");
+        return;
+      }
+      const models: string[] = data.models ?? [];
+      setImageModels(models);
+      setOpenaiImageModel((current) => {
+        if (current && models.includes(current)) return current;
+        if (models.includes("gpt-image-2.5-flare")) return "gpt-image-2.5-flare";
+        return models[0] ?? current;
+      });
+    } catch (err) {
+      setImageModels([]);
+      setImageModelsError(
+        err instanceof Error ? err.message : "Failed to load image models",
+      );
+    } finally {
+      setImageModelsLoading(false);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     const res = await fetch("/api/settings");
     const data = await res.json();
     setSettings(data);
     setOpenaiModel(data.openaiModel ?? "gpt-4.1-mini");
+    setOpenaiImageModel(data.openaiImageModel ?? "gpt-image-2.5-flare");
     if (data.openaiConfigured) {
       void loadModels();
+      void loadImageModels();
     } else {
       setOpenaiModels([]);
+      setImageModels([]);
       setModelsError(null);
+      setImageModelsError(null);
     }
-  }, [loadModels]);
+  }, [loadModels, loadImageModels]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  async function ensureOpenaiKeySaved() {
+    if (!openaiApiKey.trim()) return true;
+    setLoading(true);
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ openaiApiKey }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      const data = await res.json();
+      setModelsError(data.error || "Could not save API key");
+      return false;
+    }
+    setOpenaiApiKey("");
+    await load();
+    return true;
+  }
 
   async function saveKeys(e: FormEvent) {
     e.preventDefault();
@@ -82,7 +142,9 @@ export default function SettingsPage() {
       body: JSON.stringify({
         openaiApiKey: openaiApiKey || undefined,
         heygenApiKey: heygenApiKey || undefined,
+        elevenlabsApiKey: elevenlabsApiKey || undefined,
         openaiModel,
+        openaiImageModel,
       }),
     });
     setLoading(false);
@@ -93,6 +155,7 @@ export default function SettingsPage() {
     }
     setOpenaiApiKey("");
     setHeygenApiKey("");
+    setElevenlabsApiKey("");
     setMessage(t.settings.saved);
     await load();
   }
@@ -194,6 +257,23 @@ export default function SettingsPage() {
           />
         </div>
         <div>
+          <label className="label">
+            {t.settings.elevenlabsKey}{" "}
+            {settings.elevenlabsConfigured
+              ? t.settings.configured
+              : t.settings.notSet}
+          </label>
+          <input
+            className="input"
+            type="password"
+            placeholder={
+              settings.elevenlabsConfigured ? t.settings.keepBlank : "xi-..."
+            }
+            value={elevenlabsApiKey}
+            onChange={(e) => setElevenlabsApiKey(e.target.value)}
+          />
+        </div>
+        <div>
           <div
             className="row"
             style={{ justifyContent: "space-between", marginBottom: 6 }}
@@ -208,23 +288,7 @@ export default function SettingsPage() {
                 modelsLoading || (!settings.openaiConfigured && !openaiApiKey)
               }
               onClick={async () => {
-                if (openaiApiKey.trim()) {
-                  setLoading(true);
-                  const res = await fetch("/api/settings", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ openaiApiKey }),
-                  });
-                  setLoading(false);
-                  if (!res.ok) {
-                    const data = await res.json();
-                    setModelsError(data.error || "Could not save API key");
-                    return;
-                  }
-                  setOpenaiApiKey("");
-                  await load();
-                  return;
-                }
+                if (!(await ensureOpenaiKeySaved())) return;
                 await loadModels();
               }}
             >
@@ -263,6 +327,60 @@ export default function SettingsPage() {
           ) : (
             <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
               {t.settings.modelsHint}
+            </div>
+          )}
+        </div>
+        <div>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", marginBottom: 6 }}
+          >
+            <label className="label" style={{ margin: 0 }}>
+              {t.settings.openaiImageModel}
+            </label>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={
+                imageModelsLoading ||
+                (!settings.openaiConfigured && !openaiApiKey)
+              }
+              onClick={async () => {
+                if (!(await ensureOpenaiKeySaved())) return;
+                await loadImageModels();
+              }}
+            >
+              {imageModelsLoading
+                ? t.settings.refreshingModels
+                : t.settings.refreshImageModels}
+            </button>
+          </div>
+          <select
+            className="select"
+            value={openaiImageModel}
+            onChange={(e) => setOpenaiImageModel(e.target.value)}
+            disabled={!imageModels.length && !openaiImageModel}
+          >
+            {!imageModels.length ? (
+              <option value={openaiImageModel || ""}>
+                {openaiImageModel || t.settings.modelsPlaceholder}
+              </option>
+            ) : null}
+            {imageModels.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          {imageModelsError ? (
+            <div
+              style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: 6 }}
+            >
+              {imageModelsError}
+            </div>
+          ) : (
+            <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+              {t.settings.imageModelsHint}
             </div>
           )}
         </div>

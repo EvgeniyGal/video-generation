@@ -22,7 +22,7 @@ export const integrationCredentials = pgTable(
   "vc_integration_credentials",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    provider: text("provider").notNull(), // openai | heygen
+    provider: text("provider").notNull(), // openai | heygen | elevenlabs
     encryptedKey: text("encrypted_key").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -104,13 +104,24 @@ export const reelDrafts = pgTable("vc_reel_drafts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export type SlideshowJobPayload = {
+  elevenLabsVoiceId?: string | null;
+  sceneCount?: number;
+  consistentCharacter?: boolean;
+  subtitles?: boolean;
+  step?: string;
+  scenePlan?: unknown;
+};
+
 export const videos = pgTable("vc_videos", {
   id: uuid("id").defaultRandom().primaryKey(),
   reelDraftId: uuid("reel_draft_id")
     .notNull()
     .references(() => reelDrafts.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("heygen"), // heygen | slideshow
   heygenSessionId: text("heygen_session_id"),
   heygenVideoId: text("heygen_video_id"),
+  jobPayload: jsonb("job_payload").$type<SlideshowJobPayload | null>(),
   publicUrl: text("public_url"),
   storagePath: text("storage_path"),
   thumbnailUrl: text("thumbnail_url"),

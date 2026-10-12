@@ -2,9 +2,14 @@ import { desc, eq } from "drizzle-orm";
 import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { reelDrafts, videos } from "@/server/db/schema";
-import { getIntegrationKey } from "@/server/integrations/credentials";
+import {
+  getIntegrationKey,
+  hasIntegrationKey,
+} from "@/server/integrations/credentials";
 import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
+import { enqueueSlideshowJob } from "@/server/jobs/run-slideshow";
+import { assertFfmpegAvailable } from "@/server/video/ffmpeg-slideshow";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
 export async function GET() {
@@ -26,86 +31,227 @@ export async function GET() {
 
 export async function POST(request: Request) {
   return apiHandler(async () => {
-  await requireSession();
+    await requireSession();
 
-  const body = await request.json();
-  const draftIds: string[] = Array.isArray(body.draftIds)
-    ? body.draftIds.map(String)
-    : body.draftId
-      ? [String(body.draftId)]
-      : [];
+    const body = await request.json();
+    const draftIds: string[] = Array.isArray(body.draftIds)
+      ? body.draftIds.map(String)
+      : body.draftId
+        ? [String(body.draftId)]
+        : [];
 
-  if (!draftIds.length) return jsonError("draftId or draftIds required");
+    if (!draftIds.length) return jsonError("draftId or draftIds required");
 
-  const apiKey = await getIntegrationKey("heygen");
-  if (!apiKey) return jsonError("HeyGen API key not configured", 400);
+    const type =
+      body.type === "slideshow" || body.type === "heygen"
+        ? body.type
+        : "heygen";
 
-  const created = [];
-  const errors: Array<{ draftId: string; error: string }> = [];
+    const created = [];
+    const errors: Array<{ draftId: string; error: string }> = [];
 
-  for (const draftId of draftIds) {
-    try {
-      const draft = await db.query.reelDrafts.findFirst({
-        where: eq(reelDrafts.id, draftId),
-      });
-      if (!draft) {
-        errors.push({ draftId, error: "Draft not found" });
-        continue;
+    if (type === "heygen") {
+      const apiKey = await getIntegrationKey("heygen");
+      if (!apiKey) return jsonError("HeyGen API key not configured", 400);
+
+      const voiceId =
+        body.voiceId !== undefined
+          ? body.voiceId
+            ? String(body.voiceId)
+            : null
+          : undefined;
+      const avatarId =
+        body.avatarId !== undefined
+          ? body.avatarId
+            ? String(body.avatarId)
+            : null
+          : undefined;
+
+      for (const draftId of draftIds) {
+        try {
+          const draft = await db.query.reelDrafts.findFirst({
+            where: eq(reelDrafts.id, draftId),
+          });
+          if (!draft) {
+            errors.push({ draftId, error: "Draft not found" });
+            continue;
+          }
+
+          if (
+            ["generating", "ready", "scheduled", "posted"].includes(draft.status)
+          ) {
+            errors.push({
+              draftId,
+              error: `Draft already in status ${draft.status}`,
+            });
+            continue;
+          }
+
+          const resolvedVoiceId =
+            voiceId !== undefined ? voiceId : draft.voiceId;
+          const resolvedAvatarId =
+            avatarId !== undefined ? avatarId : draft.avatarId;
+
+          if (voiceId !== undefined || avatarId !== undefined) {
+            await db
+              .update(reelDrafts)
+              .set({
+                ...(voiceId !== undefined ? { voiceId } : {}),
+                ...(avatarId !== undefined ? { avatarId } : {}),
+                updatedAt: new Date(),
+              })
+              .where(eq(reelDrafts.id, draftId));
+          }
+
+          const prompt = buildHeyGenPrompt({
+            hook: draft.hook,
+            script: draft.script,
+            caption: draft.caption,
+            hashtags: draft.hashtags ?? [],
+            cta: draft.cta,
+            visualStyle: draft.visualStyle,
+            suggestedDurationSec: draft.suggestedDurationSec ?? 30,
+            language: draft.language,
+          });
+
+          const session = await createVideoAgentSession(apiKey, {
+            prompt,
+            voiceId: resolvedVoiceId,
+            avatarId: resolvedAvatarId,
+            styleId: draft.styleId,
+            orientation: "portrait",
+          });
+
+          const [video] = await db
+            .insert(videos)
+            .values({
+              reelDraftId: draftId,
+              provider: "heygen",
+              heygenSessionId: session.session_id,
+              heygenVideoId: session.video_id,
+              status: session.video_id ? "generating" : "pending",
+            })
+            .returning();
+
+          await db
+            .update(reelDrafts)
+            .set({
+              status: "generating",
+              updatedAt: new Date(),
+              errorMessage: null,
+            })
+            .where(eq(reelDrafts.id, draftId));
+
+          created.push(video);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Failed";
+          await db
+            .update(reelDrafts)
+            .set({
+              status: "failed",
+              errorMessage: message,
+              updatedAt: new Date(),
+            })
+            .where(eq(reelDrafts.id, draftId));
+          errors.push({ draftId, error: message });
+        }
       }
 
-      if (["generating", "ready", "scheduled", "posted"].includes(draft.status)) {
-        errors.push({
-          draftId,
-          error: `Draft already in status ${draft.status}`,
-        });
-        continue;
-      }
-
-      const prompt = buildHeyGenPrompt({
-        hook: draft.hook,
-        script: draft.script,
-        caption: draft.caption,
-        hashtags: draft.hashtags ?? [],
-        cta: draft.cta,
-        visualStyle: draft.visualStyle,
-        suggestedDurationSec: draft.suggestedDurationSec ?? 30,
-        language: draft.language,
-      });
-
-      const session = await createVideoAgentSession(apiKey, {
-        prompt,
-        voiceId: draft.voiceId,
-        avatarId: draft.avatarId,
-        styleId: draft.styleId,
-        orientation: "portrait",
-      });
-
-      const [video] = await db
-        .insert(videos)
-        .values({
-          reelDraftId: draftId,
-          heygenSessionId: session.session_id,
-          heygenVideoId: session.video_id,
-          status: session.video_id ? "generating" : "pending",
-        })
-        .returning();
-
-      await db
-        .update(reelDrafts)
-        .set({ status: "generating", updatedAt: new Date(), errorMessage: null })
-        .where(eq(reelDrafts.id, draftId));
-
-      created.push(video);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed";
-      await db
-        .update(reelDrafts)
-        .set({ status: "failed", errorMessage: message, updatedAt: new Date() })
-        .where(eq(reelDrafts.id, draftId));
-      errors.push({ draftId, error: message });
+      return jsonOk({ videos: created, errors });
     }
-  }
 
-  return jsonOk({ videos: created, errors });
+    // Slideshow
+    if (!(await hasIntegrationKey("openai"))) {
+      return jsonError("OpenAI API key not configured", 400);
+    }
+    if (!(await hasIntegrationKey("elevenlabs"))) {
+      return jsonError("ElevenLabs API key not configured", 400);
+    }
+
+    const elevenLabsVoiceId = body.elevenLabsVoiceId
+      ? String(body.elevenLabsVoiceId)
+      : null;
+    if (!elevenLabsVoiceId) {
+      return jsonError("elevenLabsVoiceId is required for slideshow", 400);
+    }
+
+    const sceneCount = Math.min(
+      8,
+      Math.max(3, Number(body.sceneCount) || 4),
+    );
+    const consistentCharacter = body.consistentCharacter !== false;
+    const subtitles = body.subtitles !== false;
+
+    try {
+      assertFfmpegAvailable();
+    } catch (err) {
+      return jsonError(
+        err instanceof Error ? err.message : "FFmpeg required",
+        400,
+      );
+    }
+
+    for (const draftId of draftIds) {
+      try {
+        const draft = await db.query.reelDrafts.findFirst({
+          where: eq(reelDrafts.id, draftId),
+        });
+        if (!draft) {
+          errors.push({ draftId, error: "Draft not found" });
+          continue;
+        }
+
+        if (
+          ["generating", "ready", "scheduled", "posted"].includes(draft.status)
+        ) {
+          errors.push({
+            draftId,
+            error: `Draft already in status ${draft.status}`,
+          });
+          continue;
+        }
+
+        const [video] = await db
+          .insert(videos)
+          .values({
+            reelDraftId: draftId,
+            provider: "slideshow",
+            status: "pending",
+            jobPayload: {
+              elevenLabsVoiceId,
+              sceneCount,
+              consistentCharacter,
+              subtitles,
+              step: "queued",
+            },
+          })
+          .returning();
+
+        await db
+          .update(reelDrafts)
+          .set({
+            status: "generating",
+            updatedAt: new Date(),
+            errorMessage: null,
+          })
+          .where(eq(reelDrafts.id, draftId));
+
+        created.push(video);
+        enqueueSlideshowJob(video.id);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed";
+        await db
+          .update(reelDrafts)
+          .set({
+            status: "failed",
+            errorMessage: message,
+            updatedAt: new Date(),
+          })
+          .where(eq(reelDrafts.id, draftId));
+        errors.push({ draftId, error: message });
+      }
+    }
+
+    return jsonOk({ videos: created, errors });
   });
 }

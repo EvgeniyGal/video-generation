@@ -127,6 +127,8 @@ export function buildHeyGenPrompt(content: {
 const CHAT_MODEL_HINT =
   /^(gpt-|o[1-9]|chatgpt-|ft:gpt-)/i;
 
+const IMAGE_MODEL_HINT = /^(gpt-image-|chatgpt-image-)/i;
+
 export async function listChatModels(apiKey: string): Promise<string[]> {
   const client = new OpenAI({ apiKey });
   const page = await client.models.list();
@@ -138,13 +140,46 @@ export async function listChatModels(apiKey: string): Promise<string[]> {
   // Prefer newer gpt / o-series first in UI by reversing alpha within groups
   return ids.sort((a, b) => {
     const rank = (id: string) => {
-      if (id.startsWith("gpt-5")) return 0;
+      if (id.startsWith("gpt-5") || id.startsWith("gpt-6")) return 0;
       if (id.startsWith("gpt-4.1")) return 1;
       if (id.startsWith("gpt-4o")) return 2;
       if (id.startsWith("o3") || id.startsWith("o4") || id.startsWith("o1")) return 3;
       if (id.startsWith("gpt-4")) return 4;
       if (id.startsWith("gpt-3.5")) return 9;
       return 5;
+    };
+    const d = rank(a) - rank(b);
+    return d !== 0 ? d : a.localeCompare(b);
+  });
+}
+
+export async function listImageModels(apiKey: string): Promise<string[]> {
+  const client = new OpenAI({ apiKey });
+  const page = await client.models.list();
+  const ids = page.data
+    .map((m) => m.id)
+    .filter((id) => IMAGE_MODEL_HINT.test(id));
+
+  const curatedFallback = [
+    "gpt-image-2.5-flare",
+    "gpt-image-2.5-sunburst",
+    "gpt-image-2",
+    "gpt-image-1.5",
+    "gpt-image-1",
+    "gpt-image-1-mini",
+  ];
+
+  const merged = [...new Set([...ids, ...curatedFallback])];
+
+  return merged.sort((a, b) => {
+    const rank = (id: string) => {
+      if (id.includes("2.5-flare")) return 0;
+      if (id.includes("2.5-sunburst")) return 1;
+      if (id.startsWith("gpt-image-2")) return 2;
+      if (id.includes("1.5")) return 3;
+      if (id.includes("1-mini")) return 5;
+      if (id.startsWith("gpt-image-1")) return 4;
+      return 6;
     };
     const d = rank(a) - rank(b);
     return d !== 0 ? d : a.localeCompare(b);
