@@ -59,34 +59,52 @@ function TipCell({
   lines?: 2 | 3;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [style, setStyle] = useState<React.CSSProperties | null>(null);
+
+  function clearClose() {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
 
   function placeTooltip() {
     const el = ref.current;
     if (!el) return;
+    clearClose();
+
     const rect = el.getBoundingClientRect();
+    const gap = 8;
+    const margin = 12;
     const width = Math.min(
       Math.max(rect.width, 320),
-      Math.min(560, window.innerWidth - 24),
+      Math.min(560, window.innerWidth - margin * 2),
     );
     let left = rect.left;
-    if (left + width > window.innerWidth - 12) {
-      left = Math.max(12, window.innerWidth - width - 12);
+    if (left + width > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - width - margin);
     }
-    const spaceBelow = window.innerHeight - rect.bottom - 16;
-    const placeAbove = spaceBelow < 160 && rect.top > spaceBelow;
-    const top = placeAbove ? undefined : rect.bottom + 8;
-    const bottom = placeAbove
-      ? window.innerHeight - rect.top + 8
-      : undefined;
+
+    const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
+    const spaceAbove = rect.top - gap - margin;
+    const placeAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(140, placeAbove ? spaceAbove : spaceBelow);
+
     setStyle({
       position: "fixed",
-      top,
-      bottom,
+      top: placeAbove ? undefined : rect.bottom + gap,
+      bottom: placeAbove ? window.innerHeight - rect.top + gap : undefined,
       left,
       width,
+      maxHeight,
       zIndex: 1000,
     });
+  }
+
+  function scheduleClose() {
+    clearClose();
+    closeTimer.current = setTimeout(() => setStyle(null), 120);
   }
 
   return (
@@ -94,12 +112,18 @@ function TipCell({
       className="tip-cell"
       ref={ref}
       onMouseEnter={placeTooltip}
-      onMouseLeave={() => setStyle(null)}
+      onMouseLeave={scheduleClose}
     >
       <div className={lines === 2 ? "clamp-2" : "clamp-3"}>{preview}</div>
       {style
         ? createPortal(
-            <div className="tip-bubble-portal" role="tooltip" style={style}>
+            <div
+              className="tip-bubble-portal"
+              role="tooltip"
+              style={style}
+              onMouseEnter={clearClose}
+              onMouseLeave={scheduleClose}
+            >
               {full}
             </div>,
             document.body,

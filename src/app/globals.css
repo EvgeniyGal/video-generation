@@ -227,8 +227,8 @@ button {
 
 .tip-bubble-portal {
   max-width: min(560px, calc(100vw - 24px));
-  max-height: min(70vh, 520px);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0.85rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -239,7 +239,7 @@ button {
   word-break: break-word;
   font-size: 0.85rem;
   line-height: 1.45;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .th-sort {
