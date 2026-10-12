@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { Check, Clapperboard, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLocale } from "@/i18n/LocaleProvider";
@@ -50,12 +58,53 @@ function TipCell({
   full: string;
   lines?: 2 | 3;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties | null>(null);
+
+  function placeTooltip() {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const width = Math.min(
+      Math.max(rect.width, 320),
+      Math.min(560, window.innerWidth - 24),
+    );
+    let left = rect.left;
+    if (left + width > window.innerWidth - 12) {
+      left = Math.max(12, window.innerWidth - width - 12);
+    }
+    const spaceBelow = window.innerHeight - rect.bottom - 16;
+    const placeAbove = spaceBelow < 160 && rect.top > spaceBelow;
+    const top = placeAbove ? undefined : rect.bottom + 8;
+    const bottom = placeAbove
+      ? window.innerHeight - rect.top + 8
+      : undefined;
+    setStyle({
+      position: "fixed",
+      top,
+      bottom,
+      left,
+      width,
+      zIndex: 1000,
+    });
+  }
+
   return (
-    <div className="tip-cell">
+    <div
+      className="tip-cell"
+      ref={ref}
+      onMouseEnter={placeTooltip}
+      onMouseLeave={() => setStyle(null)}
+    >
       <div className={lines === 2 ? "clamp-2" : "clamp-3"}>{preview}</div>
-      <div className="tip-bubble" role="tooltip">
-        {full}
-      </div>
+      {style
+        ? createPortal(
+            <div className="tip-bubble-portal" role="tooltip" style={style}>
+              {full}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -467,9 +516,19 @@ export default function DraftsPage() {
           </thead>
           <tbody>
             {visible.map((draft) => {
-              const captionFull = [
-                draft.caption,
-                (draft.hashtags ?? []).map((h) => `#${h}`).join(" "),
+              const details = [
+                draft.hook ? `${t.drafts.hook}\n${draft.hook}` : "",
+                draft.script ? `${t.drafts.script}\n${draft.script}` : "",
+                draft.caption ? `${t.drafts.caption}\n${draft.caption}` : "",
+                draft.cta ? `${t.drafts.cta}\n${draft.cta}` : "",
+                draft.visualStyle
+                  ? `${t.drafts.visualStyleField}\n${draft.visualStyle}`
+                  : "",
+                (draft.hashtags ?? []).length
+                  ? `${t.drafts.hashtags}\n${(draft.hashtags ?? [])
+                      .map((h) => `#${h}`)
+                      .join(" ")}`
+                  : "",
               ]
                 .filter(Boolean)
                 .join("\n\n");
@@ -486,7 +545,7 @@ export default function DraftsPage() {
                   <td className="col-fill">
                     <TipCell
                       lines={3}
-                      full={captionFull}
+                      full={details}
                       preview={
                         <>
                           <div>{draft.caption}</div>
