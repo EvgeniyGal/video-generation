@@ -47,7 +47,6 @@ export default function DashboardPage() {
             gap: "1rem",
           }}
         >
-          <StatCard label={t.dashboard.ideas} value={stats.ideas} href="/ideas" />
           <StatCard label={t.dashboard.drafts} value={stats.drafts.total} href="/drafts" />
           <StatCard
             label={t.dashboard.generating}

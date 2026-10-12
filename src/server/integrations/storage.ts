@@ -49,3 +49,15 @@ export async function downloadUrlToBuffer(url: string): Promise<Buffer> {
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
+
+export async function removeStoragePaths(paths: string[]): Promise<void> {
+  const cleaned = [...new Set(paths.map((p) => p.trim()).filter(Boolean))];
+  if (!cleaned.length) return;
+
+  const supabase = getSupabaseAdmin();
+  const bucket = getVideosBucket();
+  const { error } = await supabase.storage.from(bucket).remove(cleaned);
+  if (error) {
+    throw new Error(`Supabase Storage delete failed: ${error.message}`);
+  }
+}

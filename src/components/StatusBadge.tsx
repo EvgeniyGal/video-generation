@@ -1,4 +1,9 @@
+"use client";
+
+import { useLocale } from "@/i18n/LocaleProvider";
+
 export function StatusBadge({ status }: { status: string }) {
+  const { t } = useLocale();
   const tone =
     status === "ready" || status === "posted" || status === "sent" || status === "approved"
       ? "badge-success"
@@ -8,5 +13,10 @@ export function StatusBadge({ status }: { status: string }) {
           ? "badge-warning"
           : "";
 
-  return <span className={`badge ${tone}`}>{status}</span>;
+  const label =
+    status in t.statuses
+      ? t.statuses[status as keyof typeof t.statuses]
+      : status;
+
+  return <span className={`badge ${tone}`}>{label}</span>;
 }

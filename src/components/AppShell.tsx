@@ -12,7 +12,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const nav = [
     { href: "/dashboard", label: t.nav.dashboard },
-    { href: "/ideas", label: t.nav.ideas },
     { href: "/drafts", label: t.nav.drafts },
     { href: "/videos", label: t.nav.videos },
     { href: "/schedule", label: t.nav.schedule },
@@ -112,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </aside>
-      <main style={{ padding: "1.5rem 2rem", maxWidth: 1200 }}>{children}</main>
+      <main style={{ padding: "1.5rem 2rem", minWidth: 0 }}>{children}</main>
     </div>
   );
 }
