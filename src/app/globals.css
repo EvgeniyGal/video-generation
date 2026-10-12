@@ -144,6 +144,7 @@ button {
 .table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .table th,
@@ -158,6 +159,29 @@ button {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.col-check {
+  width: 2.75rem;
+}
+
+.col-fill {
+  width: auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.col-status {
+  width: 8.5rem;
+}
+
+.col-date {
+  width: 7rem;
+  white-space: nowrap;
+}
+
+.col-actions {
+  width: 9.5rem;
 }
 
 .muted {

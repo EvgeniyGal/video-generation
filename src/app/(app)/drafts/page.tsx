@@ -28,7 +28,7 @@ type Voice = {
   gender?: string;
 };
 
-type SortKey = "hook" | "caption" | "status" | "createdAt";
+type SortKey = "caption" | "status" | "createdAt";
 type SortDir = "asc" | "desc";
 
 const STATUS_OPTIONS = [
@@ -432,7 +432,7 @@ export default function DraftsPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>
+              <th className="col-check">
                 <input
                   type="checkbox"
                   checked={allSelectableSelected}
@@ -441,28 +441,32 @@ export default function DraftsPage() {
                   aria-label="Select all"
                 />
               </th>
-              <th className="th-sort" onClick={() => toggleSort("hook")}>
-                {t.drafts.hookScript}
-                {sortMark("hook")}
-              </th>
-              <th className="th-sort" onClick={() => toggleSort("caption")}>
+              <th
+                className="th-sort col-fill"
+                onClick={() => toggleSort("caption")}
+              >
                 {t.drafts.caption}
                 {sortMark("caption")}
               </th>
-              <th className="th-sort" onClick={() => toggleSort("status")}>
+              <th
+                className="th-sort col-status"
+                onClick={() => toggleSort("status")}
+              >
                 {t.status}
                 {sortMark("status")}
               </th>
-              <th className="th-sort" onClick={() => toggleSort("createdAt")}>
+              <th
+                className="th-sort col-date"
+                onClick={() => toggleSort("createdAt")}
+              >
                 {t.created}
                 {sortMark("createdAt")}
               </th>
-              <th>{t.drafts.actions}</th>
+              <th className="col-actions">{t.drafts.actions}</th>
             </tr>
           </thead>
           <tbody>
             {visible.map((draft) => {
-              const hookFull = `${draft.hook}\n\n${draft.script}`;
               const captionFull = [
                 draft.caption,
                 (draft.hashtags ?? []).map((h) => `#${h}`).join(" "),
@@ -471,7 +475,7 @@ export default function DraftsPage() {
                 .join("\n\n");
               return (
                 <tr key={draft.id}>
-                  <td>
+                  <td className="col-check">
                     <input
                       type="checkbox"
                       checked={selected.has(draft.id)}
@@ -479,21 +483,7 @@ export default function DraftsPage() {
                       disabled={!canAct(draft.status)}
                     />
                   </td>
-                  <td style={{ maxWidth: 280 }}>
-                    <TipCell
-                      lines={3}
-                      full={hookFull}
-                      preview={
-                        <>
-                          <strong>{draft.hook}</strong>
-                          <div className="muted" style={{ marginTop: 4 }}>
-                            {draft.script}
-                          </div>
-                        </>
-                      }
-                    />
-                  </td>
-                  <td style={{ maxWidth: 220 }}>
+                  <td className="col-fill">
                     <TipCell
                       lines={3}
                       full={captionFull}
@@ -507,7 +497,7 @@ export default function DraftsPage() {
                       }
                     />
                   </td>
-                  <td>
+                  <td className="col-status">
                     <StatusBadge status={draft.status} />
                     {draft.errorMessage ? (
                       <div
@@ -521,12 +511,12 @@ export default function DraftsPage() {
                       </div>
                     ) : null}
                   </td>
-                  <td className="muted" style={{ whiteSpace: "nowrap" }}>
+                  <td className="col-date muted">
                     {draft.createdAt
                       ? new Date(draft.createdAt).toLocaleDateString()
                       : "—"}
                   </td>
-                  <td>
+                  <td className="col-actions">
                     <div className="actions-cell">
                       <button
                         className="btn btn-secondary btn-icon"
@@ -575,7 +565,7 @@ export default function DraftsPage() {
             })}
             {!visible.length ? (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={5} className="muted">
                   {drafts.length ? t.drafts.emptyFiltered : t.drafts.empty}
                 </td>
               </tr>
