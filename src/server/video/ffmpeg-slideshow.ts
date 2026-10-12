@@ -37,6 +37,9 @@ function probeDurationSec(filePath: string): number {
 }
 
 function writeScaledStill(src: string, dest: string) {
+  // Cover 9:16 (1080x1920): scale up to fill, then center-crop.
+  // OpenAI portrait stills are typically 1024x1536 (2:3), which is wider
+  // than 9:16 — decrease+pad left black bars; increase+crop fills the frame.
   execFileSync(
     "ffmpeg",
     [
@@ -44,7 +47,7 @@ function writeScaledStill(src: string, dest: string) {
       "-i",
       src,
       "-vf",
-      "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+      "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
       "-frames:v",
       "1",
       dest,
