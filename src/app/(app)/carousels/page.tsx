@@ -43,6 +43,10 @@ export default function CarouselsPage() {
   const [loading, setLoading] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [editing, setEditing] = useState<Draft | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    urls: string[];
+    index: number;
+  } | null>(null);
 
   const [niche, setNiche] = useState("");
   const [audience, setAudience] = useState("");
@@ -66,6 +70,35 @@ export default function CarouselsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setLightbox(null);
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        setLightbox((prev) =>
+          prev
+            ? {
+                ...prev,
+                index: (prev.index - 1 + prev.urls.length) % prev.urls.length,
+              }
+            : prev,
+        );
+      }
+      if (e.key === "ArrowRight") {
+        setLightbox((prev) =>
+          prev
+            ? { ...prev, index: (prev.index + 1) % prev.urls.length }
+            : prev,
+        );
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -275,19 +308,41 @@ export default function CarouselsPage() {
                         paddingBottom: 4,
                       }}
                     >
-                      {rendered.slideUrls.map((url) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                      {rendered.slideUrls.map((url, idx) => (
+                        <button
                           key={url}
-                          src={url}
-                          alt=""
+                          type="button"
+                          onClick={() =>
+                            setLightbox({
+                              urls: rendered.slideUrls,
+                              index: idx,
+                            })
+                          }
+                          title={tf(t.carousels.previewSlide, {
+                            n: idx + 1,
+                            total: rendered.slideUrls.length,
+                          })}
                           style={{
-                            height: 160,
-                            width: "auto",
-                            borderRadius: 8,
+                            padding: 0,
                             border: "1px solid var(--border)",
+                            borderRadius: 8,
+                            background: "transparent",
+                            cursor: "pointer",
+                            overflow: "hidden",
+                            flexShrink: 0,
                           }}
-                        />
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt=""
+                            style={{
+                              height: 160,
+                              width: "auto",
+                              display: "block",
+                            }}
+                          />
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -552,6 +607,111 @@ export default function CarouselsPage() {
                 {t.carousels.save}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {lightbox ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.carousels.fullPreview}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.82)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 60,
+            padding: 16,
+          }}
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="stack"
+            style={{
+              width: "min(520px, 100%)",
+              maxHeight: "92vh",
+              alignItems: "center",
+              gap: 12,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="row"
+              style={{
+                width: "100%",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span className="muted">
+                {tf(t.carousels.previewSlide, {
+                  n: lightbox.index + 1,
+                  total: lightbox.urls.length,
+                })}
+              </span>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={() => setLightbox(null)}
+              >
+                {t.cancel}
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.urls[lightbox.index]}
+              alt=""
+              style={{
+                maxWidth: "100%",
+                maxHeight: "78vh",
+                width: "auto",
+                height: "auto",
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                objectFit: "contain",
+                background: "#000",
+              }}
+            />
+            {lightbox.urls.length > 1 ? (
+              <div className="row" style={{ gap: 8 }}>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() =>
+                    setLightbox((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            index:
+                              (prev.index - 1 + prev.urls.length) %
+                              prev.urls.length,
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  {t.carousels.prevSlide}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() =>
+                    setLightbox((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            index: (prev.index + 1) % prev.urls.length,
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  {t.carousels.nextSlide}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
