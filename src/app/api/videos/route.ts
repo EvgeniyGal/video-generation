@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
-import { reelDrafts, videos } from "@/server/db/schema";
+import { reelDrafts, scheduledPosts, videos } from "@/server/db/schema";
 import {
   getIntegrationKey,
   hasIntegrationKey,
@@ -10,6 +10,7 @@ import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
 import { enqueueSlideshowJob } from "@/server/jobs/run-slideshow";
 import { assertFfmpegAvailable } from "@/server/video/ffmpeg-slideshow";
+import { derivePublishStatus } from "@/lib/publish-status";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
 export async function GET() {
@@ -19,12 +20,28 @@ export async function GET() {
       orderBy: [desc(videos.createdAt)],
     });
     const drafts = await db.query.reelDrafts.findMany();
+    const posts = await db.query.scheduledPosts.findMany();
+
+    const postsByVideo = new Map<string, typeof posts>();
+    for (const p of posts) {
+      const list = postsByVideo.get(p.videoId) ?? [];
+      list.push(p);
+      postsByVideo.set(p.videoId, list);
+    }
 
     return jsonOk({
-      videos: rows.map((v) => ({
-        ...v,
-        draft: drafts.find((d) => d.id === v.reelDraftId) ?? null,
-      })),
+      videos: rows.map((v) => {
+        const draft = drafts.find((d) => d.id === v.reelDraftId) ?? null;
+        const videoPosts = postsByVideo.get(v.id) ?? [];
+        return {
+          ...v,
+          draft,
+          publishStatus: derivePublishStatus({
+            draftStatus: draft?.status,
+            posts: videoPosts,
+          }),
+        };
+      }),
     });
   });
 }

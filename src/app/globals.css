@@ -205,19 +205,24 @@ button {
   width: 2.75rem;
 }
 
+/* Remaining space after fixed columns (do NOT set width: 100% — that overflows). */
 .col-fill {
   width: auto;
   min-width: 0;
   overflow: hidden;
+  word-break: break-word;
 }
 
 .col-status {
-  width: 8.5rem;
+  width: 9rem;
+  overflow: hidden;
 }
 
 .col-date {
-  width: 7rem;
+  width: 10.5rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .col-actions {

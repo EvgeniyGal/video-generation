@@ -5,13 +5,21 @@ import { useLocale } from "@/i18n/LocaleProvider";
 export function StatusBadge({ status }: { status: string }) {
   const { t } = useLocale();
   const tone =
-    status === "ready" || status === "posted" || status === "sent" || status === "approved"
+    status === "ready" ||
+    status === "posted" ||
+    status === "sent" ||
+    status === "approved"
       ? "badge-success"
       : status === "failed"
         ? "badge-danger"
-        : status === "generating" || status === "pending" || status === "uploading"
+        : status === "generating" ||
+            status === "pending" ||
+            status === "uploading" ||
+            status === "scheduled"
           ? "badge-warning"
-          : "";
+          : status === "unposted"
+            ? ""
+            : "";
 
   const label =
     status in t.statuses

@@ -8,6 +8,7 @@ type VideoRow = {
   id: string;
   status: string;
   provider?: string | null;
+  publishStatus?: "unposted" | "scheduled" | "posted";
   publicUrl: string | null;
   thumbnailUrl: string | null;
   duration: number | null;
@@ -72,7 +73,14 @@ export default function VideosPage() {
         {videos.map((video) => (
           <div key={video.id} className="card stack" style={{ gap: "0.75rem" }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <StatusBadge status={video.status} />
+              <div className="row" style={{ gap: 6 }}>
+                <StatusBadge status={video.status} />
+                {video.status === "ready" ? (
+                  <StatusBadge
+                    status={video.publishStatus ?? "unposted"}
+                  />
+                ) : null}
+              </div>
               <span className="muted" style={{ fontSize: "0.8rem" }}>
                 {video.provider === "slideshow"
                   ? t.videos.providerSlideshow
