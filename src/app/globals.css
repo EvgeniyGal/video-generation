@@ -12,6 +12,11 @@
   --success: #3ecf8e;
   --warning: #f0b429;
   --danger: #f07178;
+  --scroll-size: 10px;
+  --scroll-track: color-mix(in srgb, var(--bg) 70%, transparent);
+  --scroll-thumb: color-mix(in srgb, var(--accent-soft) 75%, var(--border));
+  --scroll-thumb-hover: color-mix(in srgb, var(--accent) 70%, var(--accent-soft));
+  --scroll-thumb-active: var(--accent);
 }
 
 @theme inline {
@@ -23,6 +28,52 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+*::-webkit-scrollbar {
+  width: var(--scroll-size);
+  height: var(--scroll-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 999px;
+  margin: 2px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 35%, var(--scroll-thumb)),
+      var(--scroll-thumb)
+    );
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 55%, var(--scroll-thumb-hover)),
+      var(--scroll-thumb-hover)
+    );
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--scroll-thumb-active);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 body {
