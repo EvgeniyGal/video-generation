@@ -35,6 +35,20 @@ type Voice = {
   name?: string;
   language?: string;
   gender?: string;
+  type?: string;
+};
+
+type AvatarLook = {
+  id: string;
+  name?: string;
+  gender?: string;
+  avatar_type?: string;
+  ownership?: string;
+};
+
+type GroupedList<T> = {
+  own: T[];
+  general: T[];
 };
 
 type SortKey = "caption" | "status" | "createdAt";
@@ -137,7 +151,16 @@ function TipCell({
 export default function DraftsPage() {
   const { t, tf } = useLocale();
   const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [voices, setVoices] = useState<Voice[]>([]);
+  const [voicesGrouped, setVoicesGrouped] = useState<GroupedList<Voice>>({
+    own: [],
+    general: [],
+  });
+  const [avatarsGrouped, setAvatarsGrouped] = useState<GroupedList<AvatarLook>>(
+    {
+      own: [],
+      general: [],
+    },
+  );
   const [editing, setEditing] = useState<Draft | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [ideasText, setIdeasText] = useState("");
@@ -166,9 +189,25 @@ export default function DraftsPage() {
   useEffect(() => {
     load();
     fetch("/api/heygen/voices")
-      .then((r) => (r.ok ? r.json() : { voices: [] }))
-      .then((d) => setVoices(d.voices ?? []))
-      .catch(() => setVoices([]));
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d) => {
+        if (d.voicesGrouped) {
+          setVoicesGrouped({
+            own: d.voicesGrouped.own ?? [],
+            general: d.voicesGrouped.general ?? [],
+          });
+        } else {
+          setVoicesGrouped({ own: [], general: d.voices ?? [] });
+        }
+        setAvatarsGrouped({
+          own: d.avatarsGrouped?.own ?? [],
+          general: d.avatarsGrouped?.general ?? [],
+        });
+      })
+      .catch(() => {
+        setVoicesGrouped({ own: [], general: [] });
+        setAvatarsGrouped({ own: [], general: [] });
+      });
   }, [load]);
 
   const visible = useMemo(() => {
@@ -971,24 +1010,80 @@ export default function DraftsPage() {
                 }
               >
                 <option value="">{t.drafts.voiceDefault}</option>
-                {voices.map((v) => (
-                  <option key={v.voice_id} value={v.voice_id}>
-                    {v.name || v.voice_id}
-                    {v.language ? ` (${v.language})` : ""}
-                    {v.gender ? ` · ${v.gender}` : ""}
-                  </option>
-                ))}
+                {editing.voiceId &&
+                ![...voicesGrouped.own, ...voicesGrouped.general].some(
+                  (v) => v.voice_id === editing.voiceId,
+                ) ? (
+                  <option value={editing.voiceId}>{editing.voiceId}</option>
+                ) : null}
+                {voicesGrouped.own.length ? (
+                  <optgroup label={t.drafts.voiceOwn}>
+                    {voicesGrouped.own.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        {v.name || v.voice_id}
+                        {v.language ? ` (${v.language})` : ""}
+                        {v.gender ? ` · ${v.gender}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {voicesGrouped.general.length ? (
+                  <optgroup label={t.drafts.voiceGeneral}>
+                    {voicesGrouped.general.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        {v.name || v.voice_id}
+                        {v.language ? ` (${v.language})` : ""}
+                        {v.gender ? ` · ${v.gender}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             </div>
             <div>
               <label className="label">{t.drafts.avatarId}</label>
-              <input
-                className="input"
+              <select
+                className="select"
                 value={editing.avatarId ?? ""}
                 onChange={(e) =>
                   setEditing({ ...editing, avatarId: e.target.value || null })
                 }
-              />
+              >
+                <option value="">{t.drafts.avatarDefault}</option>
+                {editing.avatarId &&
+                ![...avatarsGrouped.own, ...avatarsGrouped.general].some(
+                  (a) => a.id === editing.avatarId,
+                ) ? (
+                  <option value={editing.avatarId}>{editing.avatarId}</option>
+                ) : null}
+                {avatarsGrouped.own.length ? (
+                  <optgroup label={t.drafts.avatarOwn}>
+                    {avatarsGrouped.own.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name || a.id}
+                        {a.gender ? ` · ${a.gender}` : ""}
+                        {a.avatar_type ? ` · ${a.avatar_type}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {avatarsGrouped.general.length ? (
+                  <optgroup label={t.drafts.avatarGeneral}>
+                    {avatarsGrouped.general.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name || a.id}
+                        {a.gender ? ` · ${a.gender}` : ""}
+                        {a.avatar_type ? ` · ${a.avatar_type}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+              </select>
+              {!avatarsGrouped.own.length && !avatarsGrouped.general.length ? (
+                <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                  {t.drafts.avatarEmpty}
+                </div>
+              ) : null}
             </div>
             <div className="row">
               <button className="btn" onClick={saveDraft} disabled={loading}>
