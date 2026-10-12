@@ -217,10 +217,10 @@ export async function DELETE(request: Request) {
 
     // Cascade in DB: draft → videos → scheduled posts → metrics.
     // Clean Supabase files first so storage does not orphan after row delete.
-    const relatedVideos = await db.query.videos.findMany({
-      where: inArray(videos.reelDraftId, ids),
-      columns: { storagePath: true },
-    });
+    const relatedVideos = await db
+      .select({ storagePath: videos.storagePath })
+      .from(videos)
+      .where(inArray(videos.reelDraftId, ids));
     const paths = relatedVideos
       .map((v) => v.storagePath)
       .filter((p): p is string => Boolean(p));

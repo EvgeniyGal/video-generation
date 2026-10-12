@@ -290,7 +290,11 @@ export default function DraftsPage() {
     if (!confirm(t.drafts.deleteConfirm)) return;
     setLoading(true);
     setMessage(null);
-    const res = await fetch(`/api/drafts?id=${id}`, { method: "DELETE" });
+    const res = await fetch("/api/drafts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
     setLoading(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -303,6 +307,34 @@ export default function DraftsPage() {
       return next;
     });
     setMessage(t.drafts.deleted);
+    await load();
+  }
+
+  async function deleteSelected() {
+    if (!selected.size) return;
+    if (
+      !confirm(
+        tf(t.drafts.deleteSelectedConfirm, { count: selected.size }),
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    const ids = [...selected];
+    const res = await fetch("/api/drafts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMessage(data.error || "Delete failed");
+      return;
+    }
+    setSelected(new Set());
+    setMessage(tf(t.drafts.deletedMany, { count: ids.length }));
     await load();
   }
 
@@ -331,20 +363,41 @@ export default function DraftsPage() {
       </div>
 
       <div className="row">
-        <button
-          className="btn btn-secondary"
-          disabled={!selected.size || loading}
-          onClick={approveSelected}
-        >
-          {t.drafts.approve}
-        </button>
-        <button
-          className="btn"
-          disabled={!selected.size || loading}
-          onClick={generateSelected}
-        >
-          {t.drafts.generate} ({selected.size})
-        </button>
+        <div className="actions-cell">
+          <button
+            className="btn btn-secondary btn-icon"
+            type="button"
+            disabled={!selected.size || loading}
+            title={t.drafts.approve}
+            aria-label={t.drafts.approve}
+            onClick={approveSelected}
+          >
+            <Check size={16} strokeWidth={2} aria-hidden />
+          </button>
+          <button
+            className="btn btn-icon"
+            type="button"
+            disabled={!selected.size || loading}
+            title={`${t.drafts.generate} (${selected.size})`}
+            aria-label={`${t.drafts.generate} (${selected.size})`}
+            onClick={generateSelected}
+          >
+            <Clapperboard size={16} strokeWidth={2} aria-hidden />
+          </button>
+          <button
+            className="btn btn-danger btn-icon"
+            type="button"
+            disabled={!selected.size || loading}
+            title={t.drafts.deleteSelected}
+            aria-label={t.drafts.deleteSelected}
+            onClick={deleteSelected}
+          >
+            <Trash2 size={16} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
+        {selected.size ? (
+          <span className="muted">({selected.size})</span>
+        ) : null}
         {message ? <span className="muted">{message}</span> : null}
       </div>
 
