@@ -31,6 +31,7 @@ try {
     "drizzle/0004_slideshow_video.sql",
     "drizzle/0005_carousels.sql",
     "drizzle/0006_user_password_hash.sql",
+    "drizzle/0007_blueprints.sql",
   ];
   for (const relative of files) {
     const file = resolve(relative);

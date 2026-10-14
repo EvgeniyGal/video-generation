@@ -30,6 +30,9 @@ export async function planSlideshowScenes(params: {
   language: string;
   sceneCount: number;
   consistentCharacter: boolean;
+  dramaNotes?: string;
+  visualArcNotes?: string;
+  subtitleNotes?: string;
 }): Promise<ScenePlan> {
   const client = new OpenAI({ apiKey: params.apiKey });
   const lang: ContentLanguage = isContentLanguage(params.language)
@@ -54,6 +57,9 @@ Script:
 ${params.script}
 Visual style notes:
 ${params.visualStyle || "Photorealistic emotional short-form reel stills"}
+${params.dramaNotes ? `Dramaturgy / narrative blueprint:\n${params.dramaNotes}` : ""}
+${params.visualArcNotes ? `Visual arc / shot progression:\n${params.visualArcNotes}` : ""}
+${params.subtitleNotes ? `Subtitle style notes (inform pacing/emphasis only; burn-in is separate):\n${params.subtitleNotes}` : ""}
 
 Respond with JSON:
 {

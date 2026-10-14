@@ -6,6 +6,7 @@ import {
   integer,
   real,
   jsonb,
+  boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -85,6 +86,33 @@ export const ideas = pgTable("vc_ideas", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** Directing DNA for Slideshow / HeyGen Video / Carousel generation. */
+export type BlueprintDefaults = {
+  sceneCount?: number;
+  consistentCharacter?: boolean;
+  subtitles?: boolean;
+  slideCount?: number;
+  heygenNotes?: string;
+  carouselAestheticNotes?: string;
+};
+
+export const blueprints = pgTable("vc_blueprints", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  brandTone: text("brand_tone").notNull().default(""),
+  visualStyle: text("visual_style").notNull().default(""),
+  language: text("language").notNull().default("ua"), // en | ua
+  defaults: jsonb("defaults").$type<BlueprintDefaults>().notNull().default({}),
+  dramaNotes: text("drama_notes").notNull().default(""),
+  visualArcNotes: text("visual_arc_notes").notNull().default(""),
+  subtitleNotes: text("subtitle_notes").notNull().default(""),
+  sourceReview: text("source_review"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const reelDrafts = pgTable("vc_reel_drafts", {
   id: uuid("id").defaultRandom().primaryKey(),
   ideaId: uuid("idea_id").references(() => ideas.id, { onDelete: "set null" }),
@@ -113,6 +141,12 @@ export type SlideshowJobPayload = {
   subtitles?: boolean;
   step?: string;
   scenePlan?: unknown;
+  /** Snapshot from blueprint at enqueue (preferred over draft.visualStyle). */
+  visualStyle?: string;
+  dramaNotes?: string;
+  visualArcNotes?: string;
+  subtitleNotes?: string;
+  blueprintId?: string;
 };
 
 export type CarouselSlide = {

@@ -3,6 +3,10 @@ import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { carouselDrafts, type CarouselSlide } from "@/server/db/schema";
 import {
+  normalizeBlueprintDefaults,
+  resolveBlueprint,
+} from "@/server/blueprints";
+import {
   getIntegrationKey,
   getSetting,
   hasIntegrationKey,
@@ -41,7 +45,17 @@ export async function POST(request: Request) {
     const audience = String(body.audience ?? "").trim();
     const productSoftMention = String(body.productSoftMention ?? "").trim();
     const seriesHint = String(body.seriesHint ?? "").trim();
-    const slideCount = Math.min(8, Math.max(4, Number(body.slideCount) || 5));
+    const blueprint = await resolveBlueprint(
+      body.blueprintId ? String(body.blueprintId) : null,
+    );
+    const bpDefaults = normalizeBlueprintDefaults(blueprint?.defaults);
+    const slideCount = Math.min(
+      8,
+      Math.max(
+        4,
+        Number(body.slideCount) || bpDefaults.slideCount || 5,
+      ),
+    );
     const count = Math.min(20, Math.max(1, Number(body.count) || 1));
     const language: ContentLanguage = isContentLanguage(String(body.language ?? ""))
       ? (body.language as ContentLanguage)
@@ -62,6 +76,11 @@ export async function POST(request: Request) {
           slideCount,
           language,
           model,
+          brandTone: blueprint?.brandTone || undefined,
+          visualStyle: blueprint?.visualStyle || undefined,
+          dramaNotes: blueprint?.dramaNotes || undefined,
+          carouselAestheticNotes:
+            bpDefaults.carouselAestheticNotes || undefined,
         });
 
         const slides: CarouselSlide[] = content.slides.map((s, idx) => ({

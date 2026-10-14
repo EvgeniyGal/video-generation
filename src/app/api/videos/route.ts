@@ -6,6 +6,10 @@ import {
   getIntegrationKey,
   hasIntegrationKey,
 } from "@/server/integrations/credentials";
+import {
+  normalizeBlueprintDefaults,
+  resolveBlueprint,
+} from "@/server/blueprints";
 import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
 import { removeStoragePaths } from "@/server/integrations/storage";
@@ -65,6 +69,11 @@ export async function POST(request: Request) {
       body.type === "slideshow" || body.type === "heygen"
         ? body.type
         : "heygen";
+
+    const blueprint = await resolveBlueprint(
+      body.blueprintId ? String(body.blueprintId) : null,
+    );
+    const bpDefaults = normalizeBlueprintDefaults(blueprint?.defaults);
 
     const created = [];
     const errors: Array<{ draftId: string; error: string }> = [];
@@ -128,9 +137,13 @@ export async function POST(request: Request) {
             caption: draft.caption,
             hashtags: draft.hashtags ?? [],
             cta: draft.cta,
-            visualStyle: draft.visualStyle,
+            visualStyle:
+              blueprint?.visualStyle?.trim() || draft.visualStyle,
             suggestedDurationSec: draft.suggestedDurationSec ?? 30,
             language: draft.language,
+            dramaNotes: blueprint?.dramaNotes,
+            visualArcNotes: blueprint?.visualArcNotes,
+            heygenNotes: bpDefaults.heygenNotes,
           });
 
           const session = await createVideoAgentSession(apiKey, {
@@ -196,10 +209,19 @@ export async function POST(request: Request) {
 
     const sceneCount = Math.min(
       8,
-      Math.max(3, Number(body.sceneCount) || 4),
+      Math.max(
+        3,
+        Number(body.sceneCount) || bpDefaults.sceneCount || 4,
+      ),
     );
-    const consistentCharacter = body.consistentCharacter !== false;
-    const subtitles = body.subtitles !== false;
+    const consistentCharacter =
+      body.consistentCharacter !== undefined
+        ? body.consistentCharacter !== false
+        : bpDefaults.consistentCharacter !== false;
+    const subtitles =
+      body.subtitles !== undefined
+        ? body.subtitles !== false
+        : bpDefaults.subtitles !== false;
 
     try {
       assertFfmpegAvailable();
@@ -242,6 +264,11 @@ export async function POST(request: Request) {
               consistentCharacter,
               subtitles,
               step: "queued",
+              blueprintId: blueprint?.id,
+              visualStyle: blueprint?.visualStyle || undefined,
+              dramaNotes: blueprint?.dramaNotes || undefined,
+              visualArcNotes: blueprint?.visualArcNotes || undefined,
+              subtitleNotes: blueprint?.subtitleNotes || undefined,
             },
           })
           .returning();

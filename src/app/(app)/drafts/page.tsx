@@ -177,8 +177,6 @@ export default function DraftsPage() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [ideasText, setIdeasText] = useState("");
-  const [brandTone, setBrandTone] = useState("");
-  const [visualStyle, setVisualStyle] = useState("");
   const [contentLanguage, setContentLanguage] = useState<"en" | "ua">("ua");
   const [estimatedDurationSec, setEstimatedDurationSec] = useState(30);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -195,6 +193,19 @@ export default function DraftsPage() {
   const [genSceneCount, setGenSceneCount] = useState(4);
   const [genConsistentCharacter, setGenConsistentCharacter] = useState(true);
   const [genSubtitles, setGenSubtitles] = useState(true);
+  const [genBlueprintId, setGenBlueprintId] = useState("");
+  const [blueprints, setBlueprints] = useState<
+    Array<{
+      id: string;
+      name: string;
+      isDefault: boolean;
+      defaults?: {
+        sceneCount?: number;
+        consistentCharacter?: boolean;
+        subtitles?: boolean;
+      };
+    }>
+  >([]);
   const [elevenVoices, setElevenVoices] = useState<ElevenLabsVoice[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -210,8 +221,18 @@ export default function DraftsPage() {
     setDrafts(data.drafts ?? []);
   }, []);
 
+  const loadBlueprints = useCallback(async () => {
+    const res = await fetch("/api/blueprints");
+    const data = await res.json();
+    const list = data.blueprints ?? [];
+    setBlueprints(list);
+    const def = list.find((b: { isDefault: boolean }) => b.isDefault);
+    if (def) setGenBlueprintId(def.id);
+  }, []);
+
   useEffect(() => {
     load();
+    loadBlueprints();
     fetch("/api/elevenlabs/voices")
       .then(async (r) => {
         if (!r.ok) return;
@@ -336,8 +357,6 @@ export default function DraftsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ideasText,
-          brandTone,
-          visualStyle,
           language: contentLanguage,
           suggestedDurationSec: estimatedDurationSec,
         }),
@@ -411,14 +430,29 @@ export default function DraftsPage() {
     await load();
   }
 
+  function applyBlueprintDefaults(blueprintId: string) {
+    const bp = blueprints.find((b) => b.id === blueprintId);
+    if (!bp?.defaults) return;
+    if (bp.defaults.sceneCount) setGenSceneCount(bp.defaults.sceneCount);
+    if (bp.defaults.consistentCharacter !== undefined) {
+      setGenConsistentCharacter(bp.defaults.consistentCharacter !== false);
+    }
+    if (bp.defaults.subtitles !== undefined) {
+      setGenSubtitles(bp.defaults.subtitles !== false);
+    }
+  }
+
   function openGenerateOne(id: string) {
     const draft = drafts.find((d) => d.id === id);
     setGenVoiceId(draft?.voiceId ?? "");
     setGenAvatarId(draft?.avatarId ?? "");
     setGenType("heygen");
-    setGenSceneCount(4);
-    setGenConsistentCharacter(true);
-    setGenSubtitles(true);
+    const def = blueprints.find((b) => b.isDefault);
+    const bpId = def?.id ?? genBlueprintId;
+    setGenBlueprintId(bpId);
+    setGenSceneCount(def?.defaults?.sceneCount ?? 4);
+    setGenConsistentCharacter(def?.defaults?.consistentCharacter !== false);
+    setGenSubtitles(def?.defaults?.subtitles !== false);
     setGenerateTarget({ mode: "one", id });
   }
 
@@ -428,9 +462,12 @@ export default function DraftsPage() {
     setGenVoiceId(first?.voiceId ?? "");
     setGenAvatarId(first?.avatarId ?? "");
     setGenType("heygen");
-    setGenSceneCount(4);
-    setGenConsistentCharacter(true);
-    setGenSubtitles(true);
+    const def = blueprints.find((b) => b.isDefault);
+    const bpId = def?.id ?? genBlueprintId;
+    setGenBlueprintId(bpId);
+    setGenSceneCount(def?.defaults?.sceneCount ?? 4);
+    setGenConsistentCharacter(def?.defaults?.consistentCharacter !== false);
+    setGenSubtitles(def?.defaults?.subtitles !== false);
     setGenerateTarget({ mode: "many", ids: [...selected] });
   }
 
@@ -451,6 +488,7 @@ export default function DraftsPage() {
             type: "heygen" as const,
             voiceId: genVoiceId || null,
             avatarId: genAvatarId || null,
+            blueprintId: genBlueprintId || undefined,
           }
         : {
             draftIds,
@@ -459,6 +497,7 @@ export default function DraftsPage() {
             sceneCount: genSceneCount,
             consistentCharacter: genConsistentCharacter,
             subtitles: genSubtitles,
+            blueprintId: genBlueprintId || undefined,
           };
 
     if (genType === "slideshow" && !genElevenVoiceId) {
@@ -880,29 +919,6 @@ export default function DraftsPage() {
                 placeholder={t.drafts.ideasPlaceholder}
               />
             </div>
-            <div>
-              <label className="label">{t.drafts.brandTone}</label>
-              <textarea
-                className="textarea"
-                disabled={creating}
-                value={brandTone}
-                onChange={(e) => setBrandTone(e.target.value)}
-                placeholder={t.drafts.brandPlaceholder}
-              />
-            </div>
-            <div>
-              <label className="label">{t.drafts.visualStyle}</label>
-              <textarea
-                className="textarea"
-                disabled={creating}
-                value={visualStyle}
-                onChange={(e) => setVisualStyle(e.target.value)}
-                placeholder={t.drafts.stylePlaceholder}
-              />
-              <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
-                {t.drafts.styleHint}
-              </div>
-            </div>
             <div className="row" style={{ alignItems: "flex-start" }}>
               <div style={{ flex: 1, minWidth: 160 }}>
                 <label className="label" htmlFor="draft-language">
@@ -1128,6 +1144,30 @@ export default function DraftsPage() {
                 {genType === "heygen"
                   ? t.drafts.typeHeygenHint
                   : t.drafts.typeSlideshowHint}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">{t.drafts.blueprint}</label>
+              <select
+                className="select"
+                value={genBlueprintId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setGenBlueprintId(id);
+                  if (id) applyBlueprintDefaults(id);
+                }}
+              >
+                <option value="">{t.blueprints.selectNone}</option>
+                {blueprints.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.isDefault ? ` (${t.blueprints.defaultBadge})` : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
+                {t.drafts.blueprintHint}
               </div>
             </div>
 

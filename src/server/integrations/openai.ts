@@ -136,6 +136,10 @@ export async function generateCarouselContent(params: {
   language: ContentLanguage;
   seriesHint?: string;
   model?: string;
+  brandTone?: string;
+  visualStyle?: string;
+  dramaNotes?: string;
+  carouselAestheticNotes?: string;
 }): Promise<CarouselContent> {
   const client = new OpenAI({ apiKey: params.apiKey });
   const model = params.model || "gpt-4.1-mini";
@@ -149,6 +153,12 @@ export async function generateCarouselContent(params: {
       ? `Soft product mention (use casually once mid-carousel, never as a hard sell):\n${params.productSoftMention}`
       : `No product to mention.`,
     params.seriesHint ? `Series hint:\n${params.seriesHint}` : null,
+    params.brandTone ? `Brand / tone:\n${params.brandTone}` : null,
+    params.visualStyle ? `Visual / production style:\n${params.visualStyle}` : null,
+    params.dramaNotes ? `Dramaturgy / narrative notes:\n${params.dramaNotes}` : null,
+    params.carouselAestheticNotes
+      ? `Carousel image aesthetic (apply to every imagePrompt):\n${params.carouselAestheticNotes}`
+      : null,
     `Exact slide count: ${slideCount} (including the hook slide).`,
     `Content language: ${languageName} (${params.language}).`,
   ]
@@ -207,6 +217,9 @@ export function buildHeyGenPrompt(content: {
   visualStyle: string;
   suggestedDurationSec: number;
   language?: string | null;
+  dramaNotes?: string | null;
+  visualArcNotes?: string | null;
+  heygenNotes?: string | null;
 }): string {
   const lang =
     content.language && isContentLanguage(content.language)
@@ -221,10 +234,99 @@ export function buildHeyGenPrompt(content: {
     `Opening hook (on-screen / spoken): ${content.hook}`,
     `Spoken script:\n${content.script}`,
     `Visual style and production notes:\n${content.visualStyle}`,
+    content.dramaNotes
+      ? `Dramaturgy / narrative blueprint:\n${content.dramaNotes}`
+      : null,
+    content.visualArcNotes
+      ? `Visual arc / shot progression:\n${content.visualArcNotes}`
+      : null,
+    content.heygenNotes
+      ? `Additional avatar / production notes:\n${content.heygenNotes}`
+      : null,
     `End with a clear call to action: ${content.cta}`,
     `Include burned-in captions/subtitles suitable for silent autoplay.`,
     `Keep pacing energetic and retention-focused for Reels/TikTok.`,
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export const blueprintSuggestSchema = z.object({
+  name: z.string(),
+  description: z.string().optional().default(""),
+  brandTone: z.string().optional().default(""),
+  visualStyle: z.string().optional().default(""),
+  language: z.enum(["en", "ua"]).optional().default("ua"),
+  dramaNotes: z.string().optional().default(""),
+  visualArcNotes: z.string().optional().default(""),
+  subtitleNotes: z.string().optional().default(""),
+  sceneCount: z.number().int().min(3).max(8).optional().default(4),
+  consistentCharacter: z.boolean().optional().default(true),
+  subtitles: z.boolean().optional().default(true),
+  slideCount: z.number().int().min(4).max(8).optional().default(5),
+  heygenNotes: z.string().optional().default(""),
+  carouselAestheticNotes: z.string().optional().default(""),
+});
+
+export type BlueprintSuggest = z.infer<typeof blueprintSuggestSchema>;
+
+const BLUEPRINT_SYSTEM_PROMPT = `You design reusable short-form content blueprints for Reels/TikTok/Shorts (slideshow stills, avatar video, and photo carousels).
+Given a video review / case study OR a short creative brief, extract directing DNA into structured fields.
+
+Map typical review sections:
+- Dramaturgy / hook pattern / POV shift / uniqueness → dramaNotes
+- Visual arc / palette / character consistency / shot sizes → visualArcNotes + visualStyle (English, production-ready)
+- Brand voice / tone of narration → brandTone
+- Subtitles (karaoke, colors, placement) → subtitleNotes
+- Scene/plan length and editing → sceneCount (3–8), consistentCharacter, subtitles on/off
+- Carousel listicle length → slideCount (4–8)
+- Avatar-specific notes → heygenNotes
+- Image aesthetic for carousels → carouselAestheticNotes (English)
+
+Prefer concrete, reusable instructions over summarizing the source. name should be short and memorable.
+Return ONLY valid JSON matching the schema.`;
+
+export async function generateBlueprintFromInput(params: {
+  apiKey: string;
+  reviewText?: string;
+  brief?: string;
+  language?: ContentLanguage;
+  model?: string;
+}): Promise<BlueprintSuggest> {
+  const client = new OpenAI({ apiKey: params.apiKey });
+  const model = params.model || "gpt-4.1-mini";
+  const language: ContentLanguage = params.language ?? "ua";
+  const languageName = contentLanguageLabel(language);
+
+  const source = (params.reviewText || params.brief || "").trim();
+  if (!source) {
+    throw new Error("reviewText or brief is required");
+  }
+
+  const completion = await client.chat.completions.create({
+    model,
+    temperature: 0.55,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: BLUEPRINT_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Preferred blueprint language hint for narrative notes: ${languageName} (${language}).
+visualStyle, heygenNotes, and carouselAestheticNotes MUST be in English for production tools.
+brandTone / dramaNotes / visualArcNotes / subtitleNotes / description may be in ${languageName}.
+
+Source material:
+${source}
+
+Respond with JSON keys: name, description, brandTone, visualStyle, language ("en"|"ua"), dramaNotes, visualArcNotes, subtitleNotes, sceneCount, consistentCharacter, subtitles, slideCount, heygenNotes, carouselAestheticNotes.`,
+      },
+    ],
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) throw new Error("OpenAI returned empty blueprint");
+
+  return blueprintSuggestSchema.parse(JSON.parse(raw));
 }
 
 /** Models useful for chat / structured content generation. */

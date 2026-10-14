@@ -74,10 +74,13 @@ export async function runSlideshowJob(videoId: string) {
     model: chatModel,
     script: draft.script,
     hook: draft.hook,
-    visualStyle: draft.visualStyle,
+    visualStyle: payload.visualStyle || draft.visualStyle,
     language: draft.language,
     sceneCount,
     consistentCharacter,
+    dramaNotes: payload.dramaNotes,
+    visualArcNotes: payload.visualArcNotes,
+    subtitleNotes: payload.subtitleNotes,
   });
 
   await setStep(videoId, { ...payload, scenePlan: plan }, "generating_images");

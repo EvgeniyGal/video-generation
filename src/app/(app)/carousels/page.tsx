@@ -55,16 +55,34 @@ export default function CarouselsPage() {
   const [slideCount, setSlideCount] = useState(5);
   const [packCount, setPackCount] = useState(1);
   const [language, setLanguage] = useState<"en" | "ua">("en");
+  const [blueprintId, setBlueprintId] = useState("");
+  const [blueprints, setBlueprints] = useState<
+    Array<{
+      id: string;
+      name: string;
+      isDefault: boolean;
+      defaults?: { slideCount?: number };
+    }>
+  >([]);
 
   const load = useCallback(async () => {
-    const [dRes, cRes] = await Promise.all([
+    const [dRes, cRes, bRes] = await Promise.all([
       fetch("/api/carousel-drafts"),
       fetch("/api/carousels"),
+      fetch("/api/blueprints"),
     ]);
     const dData = await dRes.json();
     const cData = await cRes.json();
+    const bData = await bRes.json();
     setDrafts(dData.drafts ?? []);
     setCarousels(cData.carousels ?? []);
+    const list = bData.blueprints ?? [];
+    setBlueprints(list);
+    const def = list.find((b: { isDefault: boolean }) => b.isDefault);
+    if (def) {
+      setBlueprintId(def.id);
+      if (def.defaults?.slideCount) setSlideCount(def.defaults.slideCount);
+    }
   }, []);
 
   useEffect(() => {
@@ -124,6 +142,7 @@ export default function CarouselsPage() {
         slideCount,
         count: packCount,
         language,
+        blueprintId: blueprintId || undefined,
       }),
     });
     const data = await res.json();
@@ -446,6 +465,32 @@ export default function CarouselsPage() {
                 onChange={(e) => setSeriesHint(e.target.value)}
                 placeholder={t.carousels.seriesHintPlaceholder}
               />
+            </div>
+            <div>
+              <label className="label">{t.carousels.blueprint}</label>
+              <select
+                className="select"
+                value={blueprintId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setBlueprintId(id);
+                  const bp = blueprints.find((b) => b.id === id);
+                  if (bp?.defaults?.slideCount) {
+                    setSlideCount(bp.defaults.slideCount);
+                  }
+                }}
+              >
+                <option value="">{t.blueprints.selectNone}</option>
+                {blueprints.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.isDefault ? ` (${t.blueprints.defaultBadge})` : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
+                {t.carousels.blueprintHint}
+              </div>
             </div>
             <div className="row" style={{ gap: 12 }}>
               <div style={{ flex: 1 }}>
