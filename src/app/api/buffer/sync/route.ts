@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { bufferAccounts, bufferChannels } from "@/server/db/schema";
@@ -41,22 +41,46 @@ export async function POST(request: Request) {
     })
     .where(eq(bufferAccounts.id, accountId));
 
-  await db
-    .delete(bufferChannels)
-    .where(eq(bufferChannels.bufferAccountId, accountId));
+  // Upsert by Buffer channelId — never delete local channels (cascade would wipe
+  // scheduled posts + analytics metrics).
+  const existing = await db.query.bufferChannels.findMany({
+    where: eq(bufferChannels.bufferAccountId, accountId),
+  });
+  const byRemoteId = new Map(existing.map((c) => [c.channelId, c]));
 
-  if (channels.length) {
-    await db.insert(bufferChannels).values(
-      channels.map((ch) => ({
+  for (const ch of channels) {
+    const local = byRemoteId.get(ch.id);
+    if (local) {
+      await db
+        .update(bufferChannels)
+        .set({
+          name: ch.name,
+          displayName: ch.displayName,
+          service: ch.service,
+          avatar: ch.avatar,
+          syncedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(bufferChannels.id, local.id),
+            eq(bufferChannels.bufferAccountId, accountId),
+          ),
+        );
+    } else {
+      await db.insert(bufferChannels).values({
         bufferAccountId: accountId,
         channelId: ch.id,
         name: ch.name,
         displayName: ch.displayName,
         service: ch.service,
         avatar: ch.avatar,
-      })),
-    );
+      });
+    }
   }
 
-  return jsonOk({ channels, organization: org });
+  const synced = await db.query.bufferChannels.findMany({
+    where: eq(bufferChannels.bufferAccountId, accountId),
+  });
+
+  return jsonOk({ channels: synced, organization: org });
 }

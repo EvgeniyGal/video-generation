@@ -16,6 +16,8 @@ type Row = {
   };
   channel?: { service: string | null; displayName: string | null };
   accountLabel: string | null;
+  mediaKind?: "video" | "carousel" | "unknown";
+  title?: string | null;
   latestMetrics: {
     metrics: Metric[];
     metricsUpdatedAt: string | null;
@@ -87,6 +89,18 @@ export default function AnalyticsPage() {
             {rows.map((row) => (
               <tr key={row.post.id}>
                 <td style={{ maxWidth: 280, whiteSpace: "pre-wrap" }}>
+                  {row.title ? (
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                      {row.title}
+                    </div>
+                  ) : null}
+                  <div className="muted" style={{ fontSize: "0.8rem" }}>
+                    {row.mediaKind === "carousel"
+                      ? t.nav.carousels
+                      : row.mediaKind === "video"
+                        ? t.nav.videos
+                        : null}
+                  </div>
                   {row.post.text.slice(0, 140)}
                   {row.post.text.length > 140 ? "…" : ""}
                   <div className="muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>

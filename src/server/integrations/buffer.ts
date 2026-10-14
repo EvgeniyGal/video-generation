@@ -241,7 +241,9 @@ export async function fetchPostMetrics(apiKey: string, postId: string) {
   const data = await bufferGraphql<{
     post: {
       id: string;
-      metrics: BufferPostMetric[];
+      status: string | null;
+      sentAt: string | null;
+      metrics: BufferPostMetric[] | null;
       metricsUpdatedAt: string | null;
     } | null;
   }>(
@@ -249,6 +251,8 @@ export async function fetchPostMetrics(apiKey: string, postId: string) {
     `query GetPostMetrics($id: PostId!) {
       post(input: { id: $id }) {
         id
+        status
+        sentAt
         metrics { type name value unit }
         metricsUpdatedAt
       }

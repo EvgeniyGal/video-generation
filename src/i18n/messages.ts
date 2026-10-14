@@ -361,7 +361,7 @@ const en = {
   analytics: {
     title: "Analytics",
     subtitle:
-      "Buffer metrics refresh ~daily. A cron job syncs at 06:00 UTC; you can also pull now.",
+      "Buffer status and metrics sync every 15 minutes; you can also pull now.",
     sync: "Sync metrics now",
     syncing: "Syncing…",
     synced: "Synced {synced}/{total} (errors: {errors})",
@@ -826,7 +826,7 @@ const ua: Messages = {
   analytics: {
     title: "Аналітика",
     subtitle:
-      "Метрики Buffer оновлюються ~раз на день. Cron о 06:00 UTC; можна також оновити зараз.",
+      "Статус і метрики Buffer синхронізуються кожні 15 хвилин; можна також оновити зараз.",
     sync: "Оновити метрики",
     syncing: "Оновлення…",
     synced: "Оновлено {synced}/{total} (помилок: {errors})",

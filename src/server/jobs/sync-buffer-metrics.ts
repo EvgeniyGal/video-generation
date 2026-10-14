@@ -9,6 +9,16 @@ import {
 import { getBufferAccountApiKey } from "@/server/integrations/credentials";
 import { fetchPostMetrics } from "@/server/integrations/buffer";
 
+function isBufferSent(result: {
+  status?: string | null;
+  sentAt?: string | null;
+  metrics?: unknown[] | null;
+}): boolean {
+  if (result.status === "sent") return true;
+  if (result.sentAt) return true;
+  return Boolean(result.metrics?.length);
+}
+
 export async function syncBufferMetrics() {
   const posts = await db.query.scheduledPosts.findMany({
     where: and(
@@ -40,7 +50,7 @@ export async function syncBufferMetrics() {
           : null,
       });
 
-      if (result.metrics?.length) {
+      if (isBufferSent(result)) {
         await db
           .update(scheduledPosts)
           .set({ status: "sent", updatedAt: new Date() })

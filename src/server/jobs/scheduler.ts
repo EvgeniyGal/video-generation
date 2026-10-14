@@ -46,8 +46,8 @@ export function startBackgroundJobs() {
     }
   });
 
-  // Daily Buffer metrics at 06:00 UTC
-  cron.schedule("0 6 * * *", async () => {
+  // Buffer post status + metrics every 15 minutes
+  cron.schedule("*/15 * * * *", async () => {
     try {
       const result = await syncBufferMetrics();
       console.log(
