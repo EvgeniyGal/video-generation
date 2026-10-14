@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ExternalLink, Trash2 } from "lucide-react";
+import { Play, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -73,6 +73,7 @@ export default function VideosPage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [preview, setPreview] = useState<VideoRow | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/videos");
@@ -85,6 +86,15 @@ export default function VideosPage() {
     const timer = setInterval(load, 15000);
     return () => clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!preview) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPreview(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [preview]);
 
   useEffect(() => {
     setPage(1);
@@ -466,16 +476,15 @@ export default function VideosPage() {
                 <td className="col-actions">
                   <div className="actions-cell">
                     {video.publicUrl ? (
-                      <a
+                      <button
                         className="btn btn-secondary btn-icon"
-                        href={video.publicUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                        type="button"
                         title={t.videos.preview}
                         aria-label={t.videos.preview}
+                        onClick={() => setPreview(video)}
                       >
-                        <ExternalLink size={16} strokeWidth={2} aria-hidden />
-                      </a>
+                        <Play size={16} strokeWidth={2} aria-hidden />
+                      </button>
                     ) : null}
                     <button
                       className="btn btn-danger btn-icon"
@@ -527,6 +536,82 @@ export default function VideosPage() {
             >
               {t.videos.nextPage}
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {preview?.publicUrl ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.videos.preview}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.82)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 70,
+            padding: 16,
+          }}
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="stack"
+            style={{
+              width: "min(420px, 100%)",
+              maxHeight: "92vh",
+              alignItems: "center",
+              gap: 12,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="row"
+              style={{
+                width: "100%",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <strong className="clamp-2" style={{ flex: 1, minWidth: 0 }}>
+                {preview.draft?.hook || t.videos.untitled}
+              </strong>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={() => setPreview(null)}
+              >
+                {t.cancel}
+              </button>
+            </div>
+            <video
+              key={preview.id}
+              src={preview.publicUrl}
+              controls
+              autoPlay
+              playsInline
+              style={{
+                width: "100%",
+                maxHeight: "80vh",
+                borderRadius: 12,
+                background: "#000",
+                border: "1px solid var(--border)",
+              }}
+            />
+            {preview.draft?.caption ? (
+              <p
+                className="muted"
+                style={{
+                  margin: 0,
+                  fontSize: "0.85rem",
+                  width: "100%",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {preview.draft.caption}
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
