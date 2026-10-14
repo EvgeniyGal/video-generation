@@ -79,7 +79,7 @@ const en = {
     workflow: "Workflow",
     step1: "Add reel ideas on Drafts (AI prepares content)",
     step2: "Review and approve drafts",
-    step3: "Generate HeyGen or Slideshow videos on demand",
+    step3: "Generate HeyGen Video or Slideshow videos on demand",
     step4: "Schedule to a Buffer channel",
     step5: "Review daily metrics in Analytics",
     dbHint:
@@ -110,7 +110,7 @@ const en = {
   drafts: {
     title: "Drafts",
     subtitle:
-      "Add ideas as plain text — AI prepares drafts. Then generate videos on demand (HeyGen or Slideshow).",
+      "Add ideas as plain text — AI prepares drafts. Then generate videos on demand (HeyGen Video or Slideshow).",
     addDrafts: "Add drafts",
     addTitle: "Add drafts from ideas",
     ideasLabel: "Ideas (one per line)",
@@ -138,7 +138,7 @@ const en = {
     generateTitle: "Generate video",
     generateTitleMany: "Generate {count} videos",
     generateType: "Video type",
-    typeHeygen: "HeyGen video",
+    typeHeygen: "HeyGen Video",
     typeSlideshow: "Slideshow video",
     typeHeygenHint: "Avatar presenter rendered by HeyGen Video Agent.",
     typeSlideshowHint:
@@ -195,8 +195,8 @@ const en = {
   videos: {
     title: "Videos",
     subtitle:
-      "HeyGen, Slideshow, and custom uploads re-hosted to public Supabase Storage.",
-    poll: "Poll HeyGen now",
+      "HeyGen Video, Slideshow, and custom uploads re-hosted to public Supabase Storage.",
+    poll: "Poll HeyGen Video now",
     addCustom: "Add custom video",
     uploadTitle: "Upload custom video",
     uploadHint: "MP4, MOV, or WebM · max 100MB",
@@ -210,7 +210,7 @@ const en = {
     uploadSuccess: "Custom video uploaded.",
     uploadFailed: "Upload failed",
     provider: "Type",
-    providerHeygen: "HeyGen",
+    providerHeygen: "HeyGen Video",
     providerSlideshow: "Slideshow",
     providerCustom: "Custom",
     publishStatus: "Publish",
@@ -494,7 +494,7 @@ const ua: Messages = {
     workflow: "Процес",
     step1: "Додайте ідеї в Чернетках (AI підготує контент)",
     step2: "Перевірте й схвалити чернетки",
-    step3: "Згенеруйте відео HeyGen або Slideshow на вимогу",
+    step3: "Згенеруйте HeyGen Відео або Slideshow на вимогу",
     step4: "Заплануйте в канал Buffer",
     step5: "Переглядайте метрики щодня в Аналітиці",
     dbHint:
@@ -525,7 +525,7 @@ const ua: Messages = {
   drafts: {
     title: "Чернетки",
     subtitle:
-      "Додайте ідеї звичайним текстом — AI підготує чернетки. Потім згенеруйте відео на вимогу (HeyGen або Slideshow).",
+      "Додайте ідеї звичайним текстом — AI підготує чернетки. Потім згенеруйте відео на вимогу (HeyGen Відео або Slideshow).",
     addDrafts: "Додати чернетки",
     addTitle: "Додати чернетки з ідей",
     ideasLabel: "Ідеї (по одній в рядок)",
@@ -553,7 +553,7 @@ const ua: Messages = {
     generateTitle: "Згенерувати відео",
     generateTitleMany: "Згенерувати відео ({count})",
     generateType: "Тип відео",
-    typeHeygen: "Відео HeyGen",
+    typeHeygen: "HeyGen Відео",
     typeSlideshow: "Slideshow відео",
     typeHeygenHint: "Аватар-ведучий через HeyGen Video Agent.",
     typeSlideshowHint:
@@ -610,8 +610,8 @@ const ua: Messages = {
   videos: {
     title: "Відео",
     subtitle:
-      "Рендери HeyGen, Slideshow і власні завантаження зберігаються в публічному Supabase Storage.",
-    poll: "Оновити статус HeyGen",
+      "Рендери HeyGen Відео, Slideshow і власні завантаження зберігаються в публічному Supabase Storage.",
+    poll: "Оновити статус HeyGen Відео",
     addCustom: "Додати своє відео",
     uploadTitle: "Завантажити своє відео",
     uploadHint: "MP4, MOV або WebM · до 100 МБ",
@@ -625,7 +625,7 @@ const ua: Messages = {
     uploadSuccess: "Власне відео завантажено.",
     uploadFailed: "Не вдалося завантажити",
     provider: "Тип",
-    providerHeygen: "HeyGen",
+    providerHeygen: "HeyGen Відео",
     providerSlideshow: "Slideshow",
     providerCustom: "Власне",
     publishStatus: "Публікація",
