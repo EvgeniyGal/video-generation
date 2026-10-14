@@ -1,8 +1,30 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLocale } from "@/i18n/LocaleProvider";
+
+const PAGE_SIZE = 20;
+
+const STATUS_OPTIONS = [
+  "pending",
+  "generating",
+  "uploading",
+  "ready",
+  "failed",
+] as const;
+
+const PROVIDER_OPTIONS = ["heygen", "slideshow", "custom"] as const;
+
+type SortKey = "title" | "provider" | "status" | "createdAt";
+type SortDir = "asc" | "desc";
 
 type VideoRow = {
   id: string;
@@ -34,12 +56,23 @@ export default function VideosPage() {
   const { t, tf } = useLocale();
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [hook, setHook] = useState("");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<
+    null | { mode: "one"; id: string } | { mode: "many"; ids: string[] }
+  >(null);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/videos");
@@ -53,11 +86,101 @@ export default function VideosPage() {
     return () => clearInterval(timer);
   }, [load]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, providerFilter, sortKey, sortDir]);
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let rows = videos.filter((v) => {
+      if (statusFilter && v.status !== statusFilter) return false;
+      if (providerFilter) {
+        const p = v.provider || "heygen";
+        if (p !== providerFilter) return false;
+      }
+      if (!q) return true;
+      const hay = `${v.draft?.hook ?? ""}\n${v.draft?.caption ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+
+    rows = [...rows].sort((a, b) => {
+      let av: string | number;
+      let bv: string | number;
+      if (sortKey === "createdAt") {
+        av = new Date(a.createdAt).getTime();
+        bv = new Date(b.createdAt).getTime();
+      } else if (sortKey === "title") {
+        av = (a.draft?.hook || "").toLowerCase();
+        bv = (b.draft?.hook || "").toLowerCase();
+      } else if (sortKey === "provider") {
+        av = (a.provider || "heygen").toLowerCase();
+        bv = (b.provider || "heygen").toLowerCase();
+      } else {
+        av = (a.status || "").toLowerCase();
+        bv = (b.status || "").toLowerCase();
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return rows;
+  }, [videos, statusFilter, providerFilter, search, sortKey, sortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+
+  const pageRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return visible.slice(start, start + PAGE_SIZE);
+  }, [visible, currentPage]);
+
+  const pageIds = useMemo(() => pageRows.map((v) => v.id), [pageRows]);
+
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
   function resetUploadForm() {
     setFile(null);
     setHook("");
     setCaption("");
     setHashtags("");
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "createdAt" ? "desc" : "asc");
+    }
+  }
+
+  function sortMark(key: SortKey) {
+    if (sortKey !== key) return "";
+    return sortDir === "asc" ? " ↑" : " ↓";
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllPage() {
+    setSelected((prev) => {
+      if (allPageSelected) {
+        const next = new Set(prev);
+        for (const id of pageIds) next.delete(id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const id of pageIds) next.add(id);
+      return next;
+    });
   }
 
   async function pollNow() {
@@ -103,6 +226,54 @@ export default function VideosPage() {
     }
   }
 
+  function requestDeleteOne(id: string) {
+    setDeleteTarget({ mode: "one", id });
+  }
+
+  function requestDeleteSelected() {
+    if (!selected.size) return;
+    setDeleteTarget({ mode: "many", ids: [...selected] });
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const payload =
+      deleteTarget.mode === "one"
+        ? { id: deleteTarget.id }
+        : { ids: deleteTarget.ids };
+    const count =
+      deleteTarget.mode === "one" ? 1 : deleteTarget.ids.length;
+
+    setLoading(true);
+    setMessage(null);
+    const res = await fetch("/api/videos", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMessage(data.error || "Delete failed");
+      return;
+    }
+
+    if (deleteTarget.mode === "one") {
+      const id = deleteTarget.id;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setMessage(t.videos.deleted);
+    } else {
+      setSelected(new Set());
+      setMessage(tf(t.videos.deletedMany, { count }));
+    }
+    setDeleteTarget(null);
+    await load();
+  }
+
   return (
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -123,82 +294,297 @@ export default function VideosPage() {
           </button>
         </div>
       </div>
-      {message ? <div className="muted">{message}</div> : null}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: "1rem",
-        }}
-      >
-        {videos.map((video) => (
-          <div key={video.id} className="card stack" style={{ gap: "0.75rem" }}>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div className="row" style={{ gap: 6 }}>
-                <StatusBadge status={video.status} />
-                {video.status === "ready" ? (
-                  <StatusBadge
-                    status={video.publishStatus ?? "unposted"}
-                  />
-                ) : null}
-              </div>
-              <span className="muted" style={{ fontSize: "0.8rem" }}>
-                {providerLabel(video.provider, t)}
-                {" · "}
-                {video.duration ? `${Math.round(video.duration)}s` : "—"}
-              </span>
-            </div>
-            {video.publicUrl ? (
-              <video
-                src={video.publicUrl}
-                controls
-                style={{ width: "100%", borderRadius: 8, background: "#000" }}
-              />
-            ) : video.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={video.thumbnailUrl}
-                alt=""
-                style={{ width: "100%", borderRadius: 8 }}
-              />
-            ) : (
-              <div
-                className="muted"
-                style={{
-                  aspectRatio: "9/16",
-                  maxHeight: 220,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "var(--bg)",
-                  borderRadius: 8,
-                }}
+      <div className="row">
+        <div className="actions-cell">
+          <button
+            className="btn btn-danger btn-icon"
+            type="button"
+            disabled={!selected.size || loading}
+            title={t.videos.deleteSelected}
+            aria-label={t.videos.deleteSelected}
+            onClick={requestDeleteSelected}
+          >
+            <Trash2 size={16} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
+        {selected.size ? (
+          <span className="muted">({selected.size})</span>
+        ) : null}
+        {message ? <span className="muted">{message}</span> : null}
+      </div>
+
+      <div className="card row" style={{ gap: "0.75rem" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <label className="label">{t.videos.filterSearch}</label>
+          <input
+            className="input"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.videos.filterSearch}
+          />
+        </div>
+        <div style={{ minWidth: 160 }}>
+          <label className="label">{t.videos.filterStatus}</label>
+          <select
+            className="select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">{t.videos.filterAll}</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s in t.statuses
+                  ? t.statuses[s as keyof typeof t.statuses]
+                  : s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ minWidth: 160 }}>
+          <label className="label">{t.videos.filterProvider}</label>
+          <select
+            className="select"
+            value={providerFilter}
+            onChange={(e) => setProviderFilter(e.target.value)}
+          >
+            <option value="">{t.videos.filterProviderAll}</option>
+            {PROVIDER_OPTIONS.map((p) => (
+              <option key={p} value={p}>
+                {providerLabel(p, t)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="card" style={{ overflowX: "auto" }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="col-check">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={toggleSelectAllPage}
+                  disabled={!pageIds.length}
+                  aria-label={t.schedule.selectAll}
+                />
+              </th>
+              <th
+                className="th-sort col-fill"
+                onClick={() => toggleSort("title")}
               >
-                {t.videos.rendering}
-              </div>
-            )}
-            <div>
-              <strong>{video.draft?.hook || t.videos.untitled}</strong>
-              <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                {video.draft?.caption?.slice(0, 120)}
-              </div>
-            </div>
-            {video.errorMessage ? (
-              <div style={{ color: "var(--danger)", fontSize: "0.85rem" }}>
-                {video.errorMessage}
-              </div>
+                {t.videos.titleLabel}
+                {sortMark("title")}
+              </th>
+              <th
+                className="th-sort col-status"
+                onClick={() => toggleSort("provider")}
+              >
+                {t.videos.provider}
+                {sortMark("provider")}
+              </th>
+              <th
+                className="th-sort col-status"
+                onClick={() => toggleSort("status")}
+              >
+                {t.status}
+                {sortMark("status")}
+              </th>
+              <th className="col-date">{t.videos.duration}</th>
+              <th
+                className="th-sort col-date"
+                onClick={() => toggleSort("createdAt")}
+              >
+                {t.created}
+                {sortMark("createdAt")}
+              </th>
+              <th className="col-actions">{t.videos.actions}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((video) => (
+              <tr key={video.id}>
+                <td className="col-check">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(video.id)}
+                    onChange={() => toggle(video.id)}
+                  />
+                </td>
+                <td className="col-fill">
+                  <div className="clamp-2">
+                    {video.draft?.hook || t.videos.untitled}
+                  </div>
+                  {video.draft?.caption ? (
+                    <div
+                      className="muted clamp-2"
+                      style={{ fontSize: "0.8rem", marginTop: 2 }}
+                    >
+                      {video.draft.caption}
+                    </div>
+                  ) : null}
+                  {video.provider === "custom" ? (
+                    <div className="muted" style={{ fontSize: "0.75rem" }}>
+                      {t.videos.providerCustom}
+                    </div>
+                  ) : null}
+                  {video.errorMessage ? (
+                    <div
+                      style={{
+                        color: "var(--danger)",
+                        fontSize: "0.8rem",
+                        marginTop: 4,
+                      }}
+                    >
+                      {video.errorMessage}
+                    </div>
+                  ) : null}
+                </td>
+                <td className="col-status muted">
+                  {providerLabel(video.provider, t)}
+                </td>
+                <td className="col-status">
+                  <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                    <StatusBadge status={video.status} />
+                    {video.status === "ready" ? (
+                      <StatusBadge
+                        status={video.publishStatus ?? "unposted"}
+                      />
+                    ) : null}
+                  </div>
+                </td>
+                <td className="col-date muted">
+                  {video.duration ? `${Math.round(video.duration)}s` : "—"}
+                </td>
+                <td className="col-date muted">
+                  {video.createdAt
+                    ? new Date(video.createdAt).toLocaleDateString()
+                    : "—"}
+                </td>
+                <td className="col-actions">
+                  <div className="actions-cell">
+                    {video.publicUrl ? (
+                      <a
+                        className="btn btn-secondary btn-icon"
+                        href={video.publicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={t.videos.preview}
+                        aria-label={t.videos.preview}
+                      >
+                        <ExternalLink size={16} strokeWidth={2} aria-hidden />
+                      </a>
+                    ) : null}
+                    <button
+                      className="btn btn-danger btn-icon"
+                      type="button"
+                      disabled={loading}
+                      title={t.videos.deleteOne}
+                      aria-label={t.videos.deleteOne}
+                      onClick={() => requestDeleteOne(video.id)}
+                    >
+                      <Trash2 size={16} strokeWidth={2} aria-hidden />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!pageRows.length ? (
+              <tr>
+                <td colSpan={7} className="muted">
+                  {videos.length ? t.videos.emptyFiltered : t.videos.empty}
+                </td>
+              </tr>
             ) : null}
-            <div className="muted" style={{ fontSize: "0.75rem" }}>
-              {video.provider === "custom"
-                ? `${t.videos.provider}: ${t.videos.providerCustom}`
-                : video.provider === "slideshow"
-                  ? `${t.videos.provider}: ${t.videos.providerSlideshow}`
-                  : `${t.videos.session}: ${video.heygenSessionId || "—"}`}
+          </tbody>
+        </table>
+      </div>
+
+      {visible.length > 0 ? (
+        <div
+          className="row"
+          style={{ justifyContent: "space-between", alignItems: "center" }}
+        >
+          <span className="muted" style={{ fontSize: "0.85rem" }}>
+            {tf(t.videos.pageOf, { page: currentPage, pages: pageCount })}
+          </span>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              {t.videos.prevPage}
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={currentPage >= pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            >
+              {t.videos.nextPage}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000a",
+            display: "grid",
+            placeItems: "center",
+            padding: "1rem",
+            zIndex: 60,
+          }}
+          onClick={() => !loading && setDeleteTarget(null)}
+        >
+          <div
+            className="card stack"
+            style={{ width: "min(440px, 100%)" }}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-video-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="delete-video-title" style={{ margin: 0 }}>
+              {deleteTarget.mode === "one"
+                ? t.videos.deleteConfirmTitle
+                : tf(t.videos.deleteSelectedConfirmTitle, {
+                    count: deleteTarget.ids.length,
+                  })}
+            </h2>
+            <p className="muted" style={{ margin: 0 }}>
+              {deleteTarget.mode === "one"
+                ? t.videos.deleteConfirm
+                : t.videos.deleteSelectedConfirm}
+            </p>
+            <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={loading}
+                onClick={() => setDeleteTarget(null)}
+              >
+                {t.cancel}
+              </button>
+              <button
+                className="btn btn-danger"
+                type="button"
+                disabled={loading}
+                onClick={confirmDelete}
+              >
+                {t.videos.deleteConfirmAction}
+              </button>
             </div>
           </div>
-        ))}
-      </div>
-      {!videos.length ? <p className="muted">{t.videos.empty}</p> : null}
+        </div>
+      ) : null}
 
       {showUpload ? (
         <div
@@ -281,7 +667,11 @@ export default function VideosPage() {
               >
                 {t.cancel}
               </button>
-              <button className="btn" type="submit" disabled={uploading || !file}>
+              <button
+                className="btn"
+                type="submit"
+                disabled={uploading || !file}
+              >
                 {uploading ? t.videos.uploading : t.videos.uploadSubmit}
               </button>
             </div>

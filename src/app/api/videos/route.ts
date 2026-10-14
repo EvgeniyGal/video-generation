@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { reelDrafts, scheduledPosts, videos } from "@/server/db/schema";
@@ -8,6 +8,7 @@ import {
 } from "@/server/integrations/credentials";
 import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
+import { removeStoragePaths } from "@/server/integrations/storage";
 import { enqueueSlideshowJob } from "@/server/jobs/run-slideshow";
 import { assertFfmpegAvailable } from "@/server/video/ffmpeg-slideshow";
 import { derivePublishStatus } from "@/lib/publish-status";
@@ -271,5 +272,67 @@ export async function POST(request: Request) {
     }
 
     return jsonOk({ videos: created, errors });
+  });
+}
+
+export async function DELETE(request: Request) {
+  return apiHandler(async () => {
+    await requireSession();
+    const { searchParams } = new URL(request.url);
+    const body = await request.json().catch(() => ({}));
+    const ids: string[] = Array.isArray(body.ids)
+      ? body.ids.map(String)
+      : body.id
+        ? [String(body.id)]
+        : searchParams.get("id")
+          ? [String(searchParams.get("id"))]
+          : [];
+
+    if (!ids.length) return jsonError("id or ids required");
+
+    const rows = await db
+      .select({
+        id: videos.id,
+        storagePath: videos.storagePath,
+        reelDraftId: videos.reelDraftId,
+      })
+      .from(videos)
+      .where(inArray(videos.id, ids));
+
+    if (!rows.length) return jsonError("No videos found", 404);
+
+    const paths = rows
+      .map((v) => v.storagePath)
+      .filter((p): p is string => Boolean(p));
+    if (paths.length) {
+      try {
+        await removeStoragePaths(paths);
+      } catch {
+        // Still delete DB rows if storage cleanup fails (e.g. already gone).
+      }
+    }
+
+    const draftIds = [...new Set(rows.map((v) => v.reelDraftId))];
+    const deletedIds = rows.map((v) => v.id);
+
+    await db.delete(videos).where(inArray(videos.id, deletedIds));
+
+    const remaining = await db
+      .select({ reelDraftId: videos.reelDraftId })
+      .from(videos)
+      .where(inArray(videos.reelDraftId, draftIds));
+    const stillHave = new Set(remaining.map((r) => r.reelDraftId));
+    const orphanDraftIds = draftIds.filter((id) => !stillHave.has(id));
+    if (orphanDraftIds.length) {
+      await db
+        .delete(reelDrafts)
+        .where(inArray(reelDrafts.id, orphanDraftIds));
+    }
+
+    return jsonOk({
+      ok: true,
+      deleted: deletedIds.length,
+      draftsDeleted: orphanDraftIds.length,
+    });
   });
 }
