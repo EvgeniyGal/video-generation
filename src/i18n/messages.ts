@@ -26,6 +26,7 @@ const en = {
   cancel: "Cancel",
   edit: "Edit",
   remove: "Remove",
+  fieldRequired: "Please fill in the required field.",
   status: "Status",
   created: "Created",
   statuses: {
@@ -189,6 +190,7 @@ const en = {
       "AI scene images + ElevenLabs voice + karaoke subtitles, composed with FFmpeg.",
     elevenLabsVoice: "ElevenLabs voice",
     elevenLabsVoiceDefault: "Select a voice…",
+    needElevenVoice: "Select an ElevenLabs voice to continue.",
     sceneCount: "Scenes (images)",
     sceneCountHint: "How many still scenes to generate for this reel (3–8).",
     consistentCharacter: "Consistent character",
@@ -487,6 +489,7 @@ const ua: Messages = {
   cancel: "Скасувати",
   edit: "Редагувати",
   remove: "Видалити",
+  fieldRequired: "Заповніть обовʼязкове поле.",
   status: "Статус",
   created: "Створено",
   statuses: {
@@ -652,6 +655,7 @@ const ua: Messages = {
       "AI-кадри + голос ElevenLabs + караоке-субтитри, зведення через FFmpeg.",
     elevenLabsVoice: "Голос ElevenLabs",
     elevenLabsVoiceDefault: "Оберіть голос…",
+    needElevenVoice: "Оберіть голос ElevenLabs, щоб продовжити.",
     sceneCount: "Сцени (зображення)",
     sceneCountHint: "Скільки статичних сцен згенерувати для цього reel (3–8).",
     consistentCharacter: "Однаковий персонаж",

@@ -17,6 +17,7 @@ import {
   listTimeZones,
 } from "@/lib/cadence";
 import { filterChannelsForMedia } from "@/lib/buffer-media-support";
+import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { defaultPostText, type PublishStatus } from "@/lib/publish-status";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -319,20 +320,27 @@ export default function SchedulePage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setMessage(null);
+    const formEl = e.currentTarget as HTMLFormElement;
 
     if (!selectedChannels.size) {
       setMessage(t.schedule.needChannel);
+      focusField("schedule-channels");
       return;
     }
     if (!timeZone) {
       setMessage(t.schedule.needTimeZone);
+      focusField("schedule-timezone");
       return;
     }
     if (!schedulableSelected.length) {
       setMessage(t.schedule.needVideos);
       return;
     }
+    if (!reportFormValidity(formEl)) {
+      setMessage(t.fieldRequired);
+      return;
+    }
+    setMessage(null);
 
     let items: Array<{
       videoId?: string;
@@ -349,6 +357,7 @@ export default function SchedulePage() {
     if (schedulableSelected.length === 1) {
       if (!dueAtLocal) {
         setMessage(t.schedule.needDueAt);
+        focusField("schedule-due-at");
         return;
       }
       let dueIso: string;
@@ -356,11 +365,13 @@ export default function SchedulePage() {
         dueIso = datetimeLocalInZoneToIso(dueAtLocal, timeZone);
       } catch {
         setMessage(t.schedule.needDueAt);
+        focusField("schedule-due-at");
         return;
       }
       const due = new Date(dueIso);
       if (Number.isNaN(due.getTime()) || due.getTime() <= Date.now()) {
         setMessage(t.schedule.needDueAt);
+        focusField("schedule-due-at");
         return;
       }
       items = [
@@ -373,6 +384,7 @@ export default function SchedulePage() {
     } else {
       if (!cadenceStartDate || !cadenceTimesOfDay.length) {
         setMessage(t.schedule.needStartDate);
+        focusField("schedule-start-at");
         return;
       }
       try {
@@ -600,11 +612,14 @@ export default function SchedulePage() {
             {t.schedule.channelsFilteredHint}
           </div>
           <div
+            id="schedule-channels"
+            tabIndex={-1}
             style={{
               border: "1px solid var(--border)",
               borderRadius: 8,
               maxHeight: 220,
               overflow: "auto",
+              outline: "none",
             }}
           >
             {applicableChannels.map((ch) => (
@@ -653,11 +668,14 @@ export default function SchedulePage() {
         </div>
 
         <div>
-          <label className="label">{t.schedule.timeZone}</label>
+          <label className="label" htmlFor="schedule-timezone">
+            {t.schedule.timeZone}
+          </label>
           <div className="muted" style={{ fontSize: "0.85rem", marginBottom: 8 }}>
             {t.schedule.timeZoneHint}
           </div>
           <select
+            id="schedule-timezone"
             className="select"
             required
             value={timeZone}
@@ -674,8 +692,11 @@ export default function SchedulePage() {
         {schedulableSelected.length === 1 ? (
           <>
             <div>
-              <label className="label">{t.schedule.postText}</label>
+              <label className="label" htmlFor="schedule-post-text">
+                {t.schedule.postText} *
+              </label>
               <textarea
+                id="schedule-post-text"
                 className="textarea"
                 required
                 value={text}
@@ -683,10 +704,11 @@ export default function SchedulePage() {
               />
             </div>
             <DateTimeFields
+              id="schedule-due-at"
               required
               value={dueAtLocal}
               onChange={setDueAtLocal}
-              dateLabel={t.schedule.dueDate}
+              dateLabel={`${t.schedule.dueDate} *`}
               timeLabel={t.schedule.dueTime}
             />
           </>
@@ -698,10 +720,11 @@ export default function SchedulePage() {
               {t.schedule.alreadyScheduledHint}
             </p>
             <DateTimeFields
+              id="schedule-start-at"
               required
               value={startAtLocal}
               onChange={setStartAtLocal}
-              dateLabel={t.schedule.startAtDate}
+              dateLabel={`${t.schedule.startAtDate} *`}
               timeLabel={t.schedule.startAtTime}
             />
             <div style={{ maxWidth: 220 }}>

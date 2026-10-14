@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Play, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
 const PAGE_SIZE = 20;
@@ -207,7 +208,22 @@ export default function VideosPage() {
 
   async function onUpload(e: FormEvent) {
     e.preventDefault();
-    if (!file || uploading) return;
+    if (uploading) return;
+    const formEl = e.currentTarget as HTMLFormElement;
+    if (!reportFormValidity(formEl)) {
+      setMessage(t.fieldRequired);
+      return;
+    }
+    if (!file) {
+      setMessage(t.fieldRequired);
+      focusField("video-upload-file");
+      return;
+    }
+    if (!hook.trim()) {
+      setMessage(t.fieldRequired);
+      focusField("video-upload-hook");
+      return;
+    }
     setUploading(true);
     setMessage(null);
     try {
@@ -700,8 +716,11 @@ export default function VideosPage() {
               {t.videos.uploadHint}
             </p>
             <div>
-              <label className="label">{t.videos.file}</label>
+              <label className="label" htmlFor="video-upload-file">
+                {t.videos.file} *
+              </label>
               <input
+                id="video-upload-file"
                 className="input"
                 type="file"
                 accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
@@ -711,8 +730,11 @@ export default function VideosPage() {
               />
             </div>
             <div>
-              <label className="label">{t.videos.titleLabel}</label>
+              <label className="label" htmlFor="video-upload-hook">
+                {t.videos.titleLabel} *
+              </label>
               <input
+                id="video-upload-hook"
                 className="input"
                 required
                 value={hook}
@@ -740,6 +762,15 @@ export default function VideosPage() {
                 onChange={(e) => setHashtags(e.target.value)}
               />
             </div>
+            {message ? (
+              <p
+                className="muted"
+                role="alert"
+                style={{ margin: 0, color: "var(--danger, #b91c1c)" }}
+              >
+                {message}
+              </p>
+            ) : null}
             <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
               <button
                 className="btn btn-secondary"

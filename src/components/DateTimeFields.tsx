@@ -8,6 +8,8 @@ type Props = {
   dateLabel: string;
   timeLabel: string;
   required?: boolean;
+  /** Focus target id for the date input (validation jump). */
+  id?: string;
 };
 
 function split(value: string): { date: string; time: string } {
@@ -30,6 +32,7 @@ export function DateTimeFields({
   dateLabel,
   timeLabel,
   required,
+  id,
 }: Props) {
   const { date, time } = split(value);
 
@@ -47,8 +50,11 @@ export function DateTimeFields({
   return (
     <div className="row" style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: 1, minWidth: 160 }}>
-        <label className="label">{dateLabel}</label>
+        <label className="label" htmlFor={id}>
+          {dateLabel}
+        </label>
         <input
+          id={id}
           className="input input-datetime"
           type="date"
           required={required}
@@ -60,8 +66,11 @@ export function DateTimeFields({
         />
       </div>
       <div style={{ flex: 1, minWidth: 140 }}>
-        <label className="label">{timeLabel}</label>
+        <label className="label" htmlFor={id ? `${id}-time` : undefined}>
+          {timeLabel}
+        </label>
         <input
+          id={id ? `${id}-time` : undefined}
           className="input input-datetime"
           type="time"
           required={required}

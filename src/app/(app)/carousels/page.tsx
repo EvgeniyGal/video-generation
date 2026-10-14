@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
 type Slide = {
@@ -129,6 +130,16 @@ export default function CarouselsPage() {
 
   async function onGenerate(e: FormEvent) {
     e.preventDefault();
+    const formEl = e.currentTarget as HTMLFormElement;
+    if (!reportFormValidity(formEl)) {
+      setMessage(t.fieldRequired);
+      return;
+    }
+    if (!niche.trim()) {
+      setMessage(t.fieldRequired);
+      focusField("carousel-niche");
+      return;
+    }
     setLoading(true);
     setMessage(null);
     const res = await fetch("/api/carousel-drafts", {
@@ -430,8 +441,11 @@ export default function CarouselsPage() {
           >
             <h2 style={{ margin: 0 }}>{t.carousels.generateTitle}</h2>
             <div>
-              <label className="label">{t.carousels.niche}</label>
+              <label className="label" htmlFor="carousel-niche">
+                {t.carousels.niche} *
+              </label>
               <textarea
+                id="carousel-niche"
                 className="textarea"
                 required
                 value={niche}
@@ -530,6 +544,15 @@ export default function CarouselsPage() {
                 </select>
               </div>
             </div>
+            {message ? (
+              <p
+                className="muted"
+                role="alert"
+                style={{ margin: 0, color: "var(--danger, #b91c1c)" }}
+              >
+                {message}
+              </p>
+            ) : null}
             <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
               <button
                 className="btn btn-secondary"

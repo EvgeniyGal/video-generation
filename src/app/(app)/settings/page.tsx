@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
 type Settings = {
@@ -162,6 +163,11 @@ export default function SettingsPage() {
 
   async function addBuffer(e: FormEvent) {
     e.preventDefault();
+    const formEl = e.currentTarget as HTMLFormElement;
+    if (!reportFormValidity(formEl)) {
+      setMessage(t.fieldRequired);
+      return;
+    }
     setLoading(true);
     setMessage(null);
     const res = await fetch("/api/buffer/accounts", {
@@ -395,8 +401,11 @@ export default function SettingsPage() {
           {t.settings.bufferHint}
         </p>
         <div>
-          <label className="label">{t.settings.label}</label>
+          <label className="label" htmlFor="buffer-label">
+            {t.settings.label} *
+          </label>
           <input
+            id="buffer-label"
             className="input"
             required
             value={bufferLabel}
@@ -405,8 +414,11 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="label">{t.settings.personalKey}</label>
+          <label className="label" htmlFor="buffer-api-key">
+            {t.settings.personalKey} *
+          </label>
           <input
+            id="buffer-api-key"
             className="input"
             type="password"
             required

@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { Check, Clapperboard, Loader2, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
 type Draft = {
@@ -344,9 +345,20 @@ export default function DraftsPage() {
 
   async function createFromIdeas(e: FormEvent) {
     e.preventDefault();
-    if (!ideasText.trim() || creating) return;
+    if (creating) return;
+    const formEl = e.currentTarget as HTMLFormElement;
+    if (!reportFormValidity(formEl)) {
+      setMessage(t.fieldRequired);
+      return;
+    }
+    if (!ideasText.trim()) {
+      setMessage(t.fieldRequired);
+      focusField("draft-ideas");
+      return;
+    }
     if (estimatedDurationSec < 5 || estimatedDurationSec > 90) {
       setMessage(t.drafts.estimatedDurationHint);
+      focusField("draft-duration");
       return;
     }
     setCreating(true);
@@ -471,12 +483,27 @@ export default function DraftsPage() {
     setGenerateTarget({ mode: "many", ids: [...selected] });
   }
 
-  async function confirmGenerate() {
+  async function confirmGenerate(e?: FormEvent) {
+    e?.preventDefault();
     if (!generateTarget) return;
+
+    if (e?.currentTarget instanceof HTMLFormElement) {
+      if (!reportFormValidity(e.currentTarget)) {
+        setMessage(t.fieldRequired);
+        return;
+      }
+    }
+
     const draftIds =
       generateTarget.mode === "one"
         ? [generateTarget.id]
         : generateTarget.ids;
+
+    if (genType === "slideshow" && !genElevenVoiceId) {
+      setMessage(t.drafts.needElevenVoice);
+      focusField("gen-eleven-voice");
+      return;
+    }
 
     setLoading(true);
     setMessage(null);
@@ -499,12 +526,6 @@ export default function DraftsPage() {
             subtitles: genSubtitles,
             blueprintId: genBlueprintId || undefined,
           };
-
-    if (genType === "slideshow" && !genElevenVoiceId) {
-      setLoading(false);
-      setMessage(t.drafts.elevenLabsVoiceDefault);
-      return;
-    }
 
     const res = await fetch("/api/videos", {
       method: "POST",
@@ -908,8 +929,11 @@ export default function DraftsPage() {
           >
             <h2 style={{ margin: 0 }}>{t.drafts.addTitle}</h2>
             <div>
-              <label className="label">{t.drafts.ideasLabel}</label>
+              <label className="label" htmlFor="draft-ideas">
+                {t.drafts.ideasLabel} *
+              </label>
               <textarea
+                id="draft-ideas"
                 className="textarea"
                 style={{ minHeight: 160 }}
                 required
@@ -964,6 +988,15 @@ export default function DraftsPage() {
                 </div>
               </div>
             </div>
+            {message ? (
+              <p
+                className="muted"
+                role="alert"
+                style={{ margin: 0, color: "var(--danger, #b91c1c)" }}
+              >
+                {message}
+              </p>
+            ) : null}
             <div className="row">
               <button className="btn" type="submit" disabled={creating}>
                 {creating ? (
@@ -1114,13 +1147,14 @@ export default function DraftsPage() {
             zIndex: 50,
           }}
         >
-          <div
+          <form
             className="card stack"
             style={{
               width: "min(560px, 100%)",
               maxHeight: "90vh",
               overflow: "auto",
             }}
+            onSubmit={confirmGenerate}
           >
             <h2 style={{ margin: 0 }}>
               {generateTarget.mode === "one"
@@ -1250,9 +1284,13 @@ export default function DraftsPage() {
             ) : (
               <>
                 <div>
-                  <label className="label">{t.drafts.elevenLabsVoice}</label>
+                  <label className="label" htmlFor="gen-eleven-voice">
+                    {t.drafts.elevenLabsVoice} *
+                  </label>
                   <select
+                    id="gen-eleven-voice"
                     className="select"
+                    required={genType === "slideshow"}
                     value={genElevenVoiceId}
                     onChange={(e) => setGenElevenVoiceId(e.target.value)}
                   >
@@ -1329,13 +1367,18 @@ export default function DraftsPage() {
               </>
             )}
 
-            <div className="row">
-              <button
-                className="btn"
-                type="button"
-                disabled={loading}
-                onClick={confirmGenerate}
+            {message ? (
+              <p
+                className="muted"
+                role="alert"
+                style={{ margin: 0, color: "var(--danger, #b91c1c)" }}
               >
+                {message}
+              </p>
+            ) : null}
+
+            <div className="row">
+              <button className="btn" type="submit" disabled={loading}>
                 {t.drafts.startGenerate}
               </button>
               <button
@@ -1347,7 +1390,7 @@ export default function DraftsPage() {
                 {t.cancel}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       ) : null}
     </div>

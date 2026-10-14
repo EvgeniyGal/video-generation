@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Pencil, Trash2, Wand2 } from "lucide-react";
+import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
 type BlueprintDefaults = {
@@ -119,7 +120,17 @@ export default function BlueprintsPage() {
 
   async function saveForm(e: FormEvent) {
     e.preventDefault();
-    if (!form || !form.name.trim() || loading) return;
+    if (!form || loading) return;
+    const formEl = e.currentTarget as HTMLFormElement;
+    if (!reportFormValidity(formEl)) {
+      setMessage(t.fieldRequired);
+      return;
+    }
+    if (!form.name.trim()) {
+      setMessage(t.fieldRequired);
+      focusField("blueprint-name");
+      return;
+    }
     setLoading(true);
     setMessage(null);
     const payload = {
@@ -397,8 +408,11 @@ export default function BlueprintsPage() {
             ) : null}
 
             <div>
-              <label className="label">{t.blueprints.name}</label>
+              <label className="label" htmlFor="blueprint-name">
+                {t.blueprints.name} *
+              </label>
               <input
+                id="blueprint-name"
                 className="input"
                 required
                 value={form.name}
@@ -569,6 +583,15 @@ export default function BlueprintsPage() {
               />
             </div>
 
+            {message ? (
+              <p
+                className="muted"
+                role="alert"
+                style={{ margin: 0, color: "var(--danger, #b91c1c)" }}
+              >
+                {message}
+              </p>
+            ) : null}
             <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
               <button
                 className="btn btn-secondary"
