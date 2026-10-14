@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -21,10 +21,25 @@ type VideoRow = {
   } | null;
 };
 
+function providerLabel(
+  provider: string | null | undefined,
+  t: ReturnType<typeof useLocale>["t"],
+) {
+  if (provider === "slideshow") return t.videos.providerSlideshow;
+  if (provider === "custom") return t.videos.providerCustom;
+  return t.videos.providerHeygen;
+}
+
 export default function VideosPage() {
   const { t, tf } = useLocale();
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [hook, setHook] = useState("");
+  const [caption, setCaption] = useState("");
+  const [hashtags, setHashtags] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/videos");
@@ -38,6 +53,13 @@ export default function VideosPage() {
     return () => clearInterval(timer);
   }, [load]);
 
+  function resetUploadForm() {
+    setFile(null);
+    setHook("");
+    setCaption("");
+    setHashtags("");
+  }
+
   async function pollNow() {
     setMessage(null);
     const res = await fetch("/api/jobs/poll-heygen", { method: "POST" });
@@ -50,6 +72,37 @@ export default function VideosPage() {
     await load();
   }
 
+  async function onUpload(e: FormEvent) {
+    e.preventDefault();
+    if (!file || uploading) return;
+    setUploading(true);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("hook", hook.trim());
+      body.append("caption", caption.trim());
+      body.append("hashtags", hashtags.trim());
+      const res = await fetch("/api/videos/upload", {
+        method: "POST",
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error || t.videos.uploadFailed);
+        return;
+      }
+      setMessage(t.videos.uploadSuccess);
+      setShowUpload(false);
+      resetUploadForm();
+      await load();
+    } catch {
+      setMessage(t.videos.uploadFailed);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -57,9 +110,18 @@ export default function VideosPage() {
           <h1 style={{ margin: 0 }}>{t.videos.title}</h1>
           <p className="muted">{t.videos.subtitle}</p>
         </div>
-        <button className="btn btn-secondary" onClick={pollNow}>
-          {t.videos.poll}
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn btn-secondary" type="button" onClick={pollNow}>
+            {t.videos.poll}
+          </button>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setShowUpload(true)}
+          >
+            {t.videos.addCustom}
+          </button>
+        </div>
       </div>
       {message ? <div className="muted">{message}</div> : null}
 
@@ -82,9 +144,7 @@ export default function VideosPage() {
                 ) : null}
               </div>
               <span className="muted" style={{ fontSize: "0.8rem" }}>
-                {video.provider === "slideshow"
-                  ? t.videos.providerSlideshow
-                  : t.videos.providerHeygen}
+                {providerLabel(video.provider, t)}
                 {" · "}
                 {video.duration ? `${Math.round(video.duration)}s` : "—"}
               </span>
@@ -129,14 +189,105 @@ export default function VideosPage() {
               </div>
             ) : null}
             <div className="muted" style={{ fontSize: "0.75rem" }}>
-              {video.provider === "slideshow"
-                ? `${t.videos.provider}: ${t.videos.providerSlideshow}`
-                : `${t.videos.session}: ${video.heygenSessionId || "—"}`}
+              {video.provider === "custom"
+                ? `${t.videos.provider}: ${t.videos.providerCustom}`
+                : video.provider === "slideshow"
+                  ? `${t.videos.provider}: ${t.videos.providerSlideshow}`
+                  : `${t.videos.session}: ${video.heygenSessionId || "—"}`}
             </div>
           </div>
         ))}
       </div>
       {!videos.length ? <p className="muted">{t.videos.empty}</p> : null}
+
+      {showUpload ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 50,
+            padding: 16,
+          }}
+          onClick={() => {
+            if (!uploading) {
+              setShowUpload(false);
+              resetUploadForm();
+            }
+          }}
+        >
+          <form
+            className="card stack"
+            style={{ width: "min(520px, 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={onUpload}
+          >
+            <h2 style={{ margin: 0 }}>{t.videos.uploadTitle}</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+              {t.videos.uploadHint}
+            </p>
+            <div>
+              <label className="label">{t.videos.file}</label>
+              <input
+                className="input"
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+                required
+                disabled={uploading}
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div>
+              <label className="label">{t.videos.titleLabel}</label>
+              <input
+                className="input"
+                required
+                value={hook}
+                disabled={uploading}
+                onChange={(e) => setHook(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">{t.videos.captionLabel}</label>
+              <textarea
+                className="textarea"
+                rows={4}
+                value={caption}
+                disabled={uploading}
+                onChange={(e) => setCaption(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">{t.videos.hashtagsLabel}</label>
+              <input
+                className="input"
+                value={hashtags}
+                disabled={uploading}
+                placeholder={t.videos.hashtagsPlaceholder}
+                onChange={(e) => setHashtags(e.target.value)}
+              />
+            </div>
+            <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={uploading}
+                onClick={() => {
+                  setShowUpload(false);
+                  resetUploadForm();
+                }}
+              >
+                {t.cancel}
+              </button>
+              <button className="btn" type="submit" disabled={uploading || !file}>
+                {uploading ? t.videos.uploading : t.videos.uploadSubmit}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -22,6 +22,7 @@ import { useLocale } from "@/i18n/LocaleProvider";
 type VideoRow = {
   id: string;
   status: string;
+  provider?: string | null;
   publicUrl: string | null;
   thumbnailUrl: string | null;
   createdAt?: string;
@@ -513,6 +514,13 @@ export default function SchedulePage() {
                   </td>
                   <td className="col-fill">
                     <div className="clamp-2">{v.draft?.hook || v.id}</div>
+                    {mediaKind === "videos" &&
+                    "provider" in v &&
+                    v.provider === "custom" ? (
+                      <div className="muted" style={{ fontSize: "0.75rem" }}>
+                        {t.videos.providerCustom}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="col-status">
                     <StatusBadge status={ps} />

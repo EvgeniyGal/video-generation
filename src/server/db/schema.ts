@@ -163,7 +163,7 @@ export const videos = pgTable("vc_videos", {
   reelDraftId: uuid("reel_draft_id")
     .notNull()
     .references(() => reelDrafts.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull().default("heygen"), // heygen | slideshow
+  provider: text("provider").notNull().default("heygen"), // heygen | slideshow | custom
   heygenSessionId: text("heygen_session_id"),
   heygenVideoId: text("heygen_video_id"),
   jobPayload: jsonb("job_payload").$type<SlideshowJobPayload | null>(),
