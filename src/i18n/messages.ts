@@ -265,7 +265,12 @@ const en = {
     channel: "Social channels",
     selectChannel: "Select channel…",
     channelsSelected: "{count} channel(s) selected",
-    channelsHint: "Each selected video will be posted to every checked channel at the planned time.",
+    channelsHint:
+      "Only channels that support this content type are listed. Each selected item posts to every checked channel at the planned time.",
+    channelsFilteredHint:
+      "YouTube is video-only; Google Business has no video; X/Mastodon allow up to 4 images; Pinterest allows 1.",
+    channelsNoneCompatible:
+      "No connected channels support this content type (or this many carousel slides).",
     postText: "Post text",
     dueAt: "Post at",
     dueDate: "Date",
@@ -676,7 +681,11 @@ const ua: Messages = {
     selectChannel: "Оберіть канал…",
     channelsSelected: "Вибрано каналів: {count}",
     channelsHint:
-      "Кожне вибране відео буде опубліковано в усі позначені канали у запланований час.",
+      "Показані лише канали, сумісні з цим типом контенту. Кожен вибраний елемент публікується в усі позначені канали у запланований час.",
+    channelsFilteredHint:
+      "YouTube — лише відео; Google Business без відео; X/Mastodon — до 4 зображень; Pinterest — 1.",
+    channelsNoneCompatible:
+      "Немає підключених каналів, сумісних з цим типом контенту (або з такою кількістю слайдів).",
     postText: "Текст поста",
     dueAt: "Час публікації",
     dueDate: "Дата",

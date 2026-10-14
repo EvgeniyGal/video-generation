@@ -16,6 +16,7 @@ import {
   guessBrowserTimeZone,
   listTimeZones,
 } from "@/lib/cadence";
+import { filterChannelsForMedia } from "@/lib/buffer-media-support";
 import { defaultPostText, type PublishStatus } from "@/lib/publish-status";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -165,6 +166,35 @@ export default function SchedulePage() {
   }, [load]);
 
   const mediaItems = mediaKind === "videos" ? videos : carouselRows;
+
+  const carouselImageCountNeeded = useMemo(() => {
+    if (mediaKind !== "carousels") return undefined;
+    const selectedCarousels = carouselRows.filter((c) => selected.has(c.id));
+    if (!selectedCarousels.length) return undefined; // default ≥2 in filter helper
+    return Math.max(...selectedCarousels.map((c) => c.slideUrls.length));
+  }, [mediaKind, carouselRows, selected]);
+
+  const applicableChannels = useMemo(
+    () =>
+      filterChannelsForMedia(channels, {
+        kind: mediaKind === "carousels" ? "carousel" : "video",
+        imageCount: carouselImageCountNeeded,
+      }),
+    [channels, mediaKind, carouselImageCountNeeded],
+  );
+
+  useEffect(() => {
+    const allowed = new Set(applicableChannels.map((c) => c.id));
+    setSelectedChannels((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [applicableChannels]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -564,6 +594,12 @@ export default function SchedulePage() {
             {t.schedule.channelsHint}
           </div>
           <div
+            className="muted"
+            style={{ fontSize: "0.8rem", marginBottom: 8 }}
+          >
+            {t.schedule.channelsFilteredHint}
+          </div>
+          <div
             style={{
               border: "1px solid var(--border)",
               borderRadius: 8,
@@ -571,7 +607,7 @@ export default function SchedulePage() {
               overflow: "auto",
             }}
           >
-            {channels.map((ch) => (
+            {applicableChannels.map((ch) => (
               <label
                 key={ch.id}
                 className="row"
@@ -602,6 +638,10 @@ export default function SchedulePage() {
             {!channels.length ? (
               <div className="muted" style={{ padding: "0.75rem" }}>
                 {t.schedule.selectChannel}
+              </div>
+            ) : !applicableChannels.length ? (
+              <div className="muted" style={{ padding: "0.75rem" }}>
+                {t.schedule.channelsNoneCompatible}
               </div>
             ) : null}
           </div>

@@ -14,8 +14,25 @@ import {
   createImagePost,
   createVideoPost,
 } from "@/server/integrations/buffer";
+import {
+  channelSupportsCarousel,
+  channelSupportsVideo,
+  isYoutubeService,
+  YOUTUBE_DEFAULT_CATEGORY_ID,
+} from "@/lib/buffer-media-support";
 import { defaultPostText } from "@/lib/publish-status";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
+
+function youtubeTitleFromDraft(draft: {
+  hook?: string | null;
+  caption?: string | null;
+} | null): string {
+  const hook = draft?.hook?.trim();
+  if (hook) return hook.slice(0, 100);
+  const caption = draft?.caption?.trim();
+  if (caption) return caption.slice(0, 100);
+  return "Video";
+}
 
 const MAX_ITEMS = 50;
 const MAX_CHANNELS = 15;
@@ -277,6 +294,16 @@ export async function POST(request: Request) {
             continue;
           }
 
+          const slideCount = carousel.slideUrls.length;
+          if (!channelSupportsCarousel(channel.service, slideCount)) {
+            errors.push({
+              carouselId: it.carouselId,
+              channelId: channel.id,
+              error: `Channel service "${channel.service || "unknown"}" does not support ${slideCount}-image carousels`,
+            });
+            continue;
+          }
+
           try {
             const post = await createImagePost({
               apiKey,
@@ -366,6 +393,15 @@ export async function POST(request: Request) {
           continue;
         }
 
+        if (!channelSupportsVideo(channel.service)) {
+          errors.push({
+            videoId: it.videoId,
+            channelId: channel.id,
+            error: `Channel service "${channel.service || "unknown"}" does not support video posts`,
+          });
+          continue;
+        }
+
         try {
           const post = await createVideoPost({
             apiKey,
@@ -374,6 +410,12 @@ export async function POST(request: Request) {
             videoUrl: video.publicUrl,
             mode: "customScheduled",
             dueAt: it.dueAt,
+            youtube: isYoutubeService(channel.service)
+              ? {
+                  title: youtubeTitleFromDraft(draft),
+                  categoryId: YOUTUBE_DEFAULT_CATEGORY_ID,
+                }
+              : undefined,
           });
 
           const [scheduled] = await db
@@ -440,6 +482,17 @@ async function createLegacyQueuePost(params: {
   const apiKey = await getBufferAccountApiKey(channel.bufferAccountId);
   if (!apiKey) return jsonError("Buffer account key missing", 400);
 
+  if (!channelSupportsVideo(channel.service)) {
+    return jsonError(
+      `Channel service "${channel.service || "unknown"}" does not support video posts`,
+      400,
+    );
+  }
+
+  const draft = await db.query.reelDrafts.findFirst({
+    where: eq(reelDrafts.id, video.reelDraftId),
+  });
+
   try {
     const post = await createVideoPost({
       apiKey,
@@ -448,6 +501,12 @@ async function createLegacyQueuePost(params: {
       videoUrl: video.publicUrl,
       mode: "addToQueue",
       thumbnailOffsetMs: params.thumbnailOffsetMs,
+      youtube: isYoutubeService(channel.service)
+        ? {
+            title: youtubeTitleFromDraft(draft ?? null),
+            categoryId: YOUTUBE_DEFAULT_CATEGORY_ID,
+          }
+        : undefined,
     });
 
     const [scheduled] = await db

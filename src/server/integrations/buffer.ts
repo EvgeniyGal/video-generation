@@ -84,6 +84,8 @@ export async function createVideoPost(params: {
   mode: "addToQueue" | "customScheduled";
   dueAt?: string;
   thumbnailOffsetMs?: number;
+  /** YouTube requires title (+ category) in post metadata. */
+  youtube?: { title: string; categoryId: string };
 }) {
   const dueAtLine =
     params.mode === "customScheduled" && params.dueAt
@@ -95,6 +97,15 @@ export async function createVideoPost(params: {
       ? `metadata: { thumbnailOffset: ${params.thumbnailOffsetMs} }`
       : "";
 
+  const postMetadataLine = params.youtube
+    ? `metadata: {
+            youtube: {
+              title: ${JSON.stringify(params.youtube.title)}
+              categoryId: ${JSON.stringify(params.youtube.categoryId)}
+            }
+          }`
+    : "";
+
   const mutation = `
     mutation CreateVideoPost {
       createPost(
@@ -104,6 +115,7 @@ export async function createVideoPost(params: {
           schedulingType: automatic
           mode: ${params.mode}
           ${dueAtLine}
+          ${postMetadataLine}
           assets: [
             {
               video: {
