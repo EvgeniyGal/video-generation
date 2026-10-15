@@ -4,10 +4,12 @@ import { db } from "@/server/db";
 import {
   carouselDrafts,
   carousels,
-  scheduledPosts,
+  type CarouselSlide,
 } from "@/server/db/schema";
 import { hasIntegrationKey } from "@/server/integrations/credentials";
+import { isStockImageRef } from "@/server/integrations/stock-images";
 import { enqueueCarouselJob } from "@/server/jobs/run-carousel";
+import { enqueueStockCarouselJob } from "@/server/jobs/run-stock-carousel";
 import { assertFfmpegAvailable } from "@/server/video/ffmpeg-carousel";
 import { derivePublishStatus } from "@/lib/publish-status";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
@@ -51,8 +53,20 @@ export async function POST(request: Request) {
   return apiHandler(async () => {
     await requireSession();
 
-    if (!(await hasIntegrationKey("openai"))) {
-      return jsonError("OpenAI API key not configured", 400);
+    const body = await request.json();
+    const imageSource = body.imageSource === "stock" ? "stock" : "ai";
+
+    if (imageSource === "ai") {
+      if (!(await hasIntegrationKey("openai"))) {
+        return jsonError("OpenAI API key not configured", 400);
+      }
+    } else {
+      if (
+        !(await hasIntegrationKey("pixabay")) &&
+        !(await hasIntegrationKey("pexels"))
+      ) {
+        return jsonError("Configure Pixabay and/or Pexels API keys", 400);
+      }
     }
 
     try {
@@ -64,7 +78,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
     const draftIds: string[] = Array.isArray(body.draftIds)
       ? body.draftIds.map(String)
       : body.draftId
@@ -98,12 +111,27 @@ export async function POST(request: Request) {
           continue;
         }
 
+        if (imageSource === "stock") {
+          const slides = (draft.slides ?? []) as CarouselSlide[];
+          const missing = slides.findIndex((s) => !isStockImageRef(s.selectedImage));
+          if (missing >= 0) {
+            errors.push({
+              draftId,
+              error: `Slide ${missing + 1} needs a selected stock image`,
+            });
+            continue;
+          }
+        }
+
         const [row] = await db
           .insert(carousels)
           .values({
             carouselDraftId: draftId,
             status: "pending",
-            jobPayload: { step: "queued" },
+            jobPayload: {
+              step: "queued",
+              imageSource,
+            },
           })
           .returning();
 
@@ -117,7 +145,11 @@ export async function POST(request: Request) {
           .where(eq(carouselDrafts.id, draftId));
 
         created.push(row);
-        enqueueCarouselJob(row.id);
+        if (imageSource === "stock") {
+          enqueueStockCarouselJob(row.id);
+        } else {
+          enqueueCarouselJob(row.id);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed";
         await db

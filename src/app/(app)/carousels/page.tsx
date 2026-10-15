@@ -2,6 +2,12 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import {
+  StockQueryGallery,
+  type StockPoolEntry,
+  type StockSlot,
+} from "@/components/StockQueryGallery";
+import type { StockImageRef } from "@/server/db/schema";
 import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -10,6 +16,7 @@ type Slide = {
   headline: string;
   body?: string;
   imagePrompt: string;
+  selectedImage?: StockImageRef | null;
 };
 
 type Draft = {
@@ -22,6 +29,7 @@ type Draft = {
   audience: string;
   productMention: string;
   slides: Slide[];
+  stockQueryPool?: StockPoolEntry[] | null;
   status: string;
   errorMessage?: string | null;
   createdAt?: string;
@@ -44,6 +52,13 @@ export default function CarouselsPage() {
   const [loading, setLoading] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [editing, setEditing] = useState<Draft | null>(null);
+  const [stockPicker, setStockPicker] = useState<{
+    draftId: string;
+    pool: StockPoolEntry[];
+    slots: StockSlot[];
+    activeSlotIndex: number;
+  } | null>(null);
+  const [refreshingQuery, setRefreshingQuery] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     urls: string[];
     index: number;
@@ -210,14 +225,14 @@ export default function CarouselsPage() {
     await load();
   }
 
-  async function renderDrafts(ids: string[]) {
+  async function renderDrafts(ids: string[], imageSource: "ai" | "stock" = "ai") {
     if (!ids.length) return;
     setLoading(true);
     setMessage(null);
     const res = await fetch("/api/carousels", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draftIds: ids }),
+      body: JSON.stringify({ draftIds: ids, imageSource }),
     });
     const data = await res.json();
     setLoading(false);
@@ -232,7 +247,117 @@ export default function CarouselsPage() {
           : ""),
     );
     setSelected(new Set());
+    setStockPicker(null);
     await load();
+  }
+
+  async function prepareStockImages(draft: Draft) {
+    setLoading(true);
+    setMessage(null);
+    const res = await fetch("/api/stock-images/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "carousel", draftId: draft.id }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setMessage(data.error || "Stock prepare failed");
+      return;
+    }
+    const pool = (data.pool ?? []) as StockPoolEntry[];
+    const slots: StockSlot[] = (data.slots ?? []).map(
+      (s: {
+        index: number;
+        label: string;
+        selectedImage?: StockImageRef | null;
+      }) => ({
+        index: s.index,
+        label: s.label,
+        selectedImage: s.selectedImage ?? null,
+      }),
+    );
+    setStockPicker({
+      draftId: draft.id,
+      pool,
+      slots,
+      activeSlotIndex: slots[0]?.index ?? 0,
+    });
+    setMessage(t.carousels.stockPrepared);
+  }
+
+  async function refreshStockQuery(originalQuery: string, editedQuery: string) {
+    if (!stockPicker) return;
+    setRefreshingQuery(originalQuery);
+    const res = await fetch("/api/stock-images/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        q: editedQuery,
+        perQuery: 5,
+        orientation: "vertical",
+      }),
+    });
+    const data = await res.json();
+    setRefreshingQuery(null);
+    if (!res.ok) {
+      setMessage(data.error || "Search failed");
+      return;
+    }
+    const images = (data.images ?? []) as StockImageRef[];
+    setStockPicker({
+      ...stockPicker,
+      pool: stockPicker.pool.map((entry) =>
+        entry.query === originalQuery
+          ? { query: editedQuery, images }
+          : entry,
+      ),
+    });
+  }
+
+  async function saveStockPicksAndRender() {
+    if (!stockPicker) return;
+    if (stockPicker.slots.some((s) => !s.selectedImage)) {
+      setMessage(t.carousels.stockNeedAllSlides);
+      return;
+    }
+    const draft = drafts.find((d) => d.id === stockPicker.draftId);
+    if (!draft) return;
+
+    const slides = draft.slides.map((s, idx) => {
+      const slot =
+        stockPicker.slots.find((x) => x.index === s.index) ??
+        stockPicker.slots[idx];
+      return {
+        ...s,
+        selectedImage: slot?.selectedImage ?? null,
+      };
+    });
+
+    setLoading(true);
+    const saveRes = await fetch("/api/carousel-drafts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: draft.id,
+        slides,
+        stockQueryPool: stockPicker.pool,
+      }),
+    });
+    const saveData = await saveRes.json();
+    if (!saveRes.ok) {
+      setLoading(false);
+      setMessage(saveData.error || "Save failed");
+      return;
+    }
+    await renderDrafts([draft.id], "stock");
+  }
+
+  function draftHasAllStockPicks(d: Draft) {
+    return (
+      !!d.slides?.length &&
+      d.slides.every((s) => s.selectedImage?.downloadUrl)
+    );
   }
 
   async function deleteDraft(id: string) {
@@ -397,14 +522,36 @@ export default function CarouselsPage() {
                     </button>
                   ) : null}
                   {["draft", "approved", "failed"].includes(d.status) ? (
-                    <button
-                      className="btn"
-                      type="button"
-                      disabled={loading}
-                      onClick={() => renderDrafts([d.id])}
-                    >
-                      {t.carousels.render}
-                    </button>
+                    <>
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={loading}
+                        onClick={() => renderDrafts([d.id], "ai")}
+                      >
+                        {t.carousels.render}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        disabled={loading}
+                        onClick={() => prepareStockImages(d)}
+                      >
+                        {loading
+                          ? t.carousels.preparingStock
+                          : t.carousels.prepareStock}
+                      </button>
+                      {draftHasAllStockPicks(d) ? (
+                        <button
+                          className="btn btn-secondary"
+                          type="button"
+                          disabled={loading}
+                          onClick={() => renderDrafts([d.id], "stock")}
+                        >
+                          {t.carousels.renderStock}
+                        </button>
+                      ) : null}
+                    </>
                   ) : null}
                   <button
                     className="btn btn-danger"
@@ -566,6 +713,94 @@ export default function CarouselsPage() {
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {stockPicker ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 55,
+            padding: 16,
+          }}
+          onClick={() => !loading && setStockPicker(null)}
+        >
+          <div
+            className="card stack"
+            style={{
+              width: "min(920px, 100%)",
+              maxHeight: "92vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: 0 }}>{t.carousels.stockPickerTitle}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              {t.carousels.stockAssignHint}
+            </p>
+            <StockQueryGallery
+              pool={stockPicker.pool}
+              slots={stockPicker.slots}
+              activeSlotIndex={stockPicker.activeSlotIndex}
+              onActiveSlotChange={(index) =>
+                setStockPicker({ ...stockPicker, activeSlotIndex: index })
+              }
+              onSelectImage={(slotIndex, image) => {
+                setStockPicker({
+                  ...stockPicker,
+                  slots: stockPicker.slots.map((s) =>
+                    s.index === slotIndex
+                      ? { ...s, selectedImage: image }
+                      : s,
+                  ),
+                });
+              }}
+              onClearSlot={(slotIndex) => {
+                setStockPicker({
+                  ...stockPicker,
+                  slots: stockPicker.slots.map((s) =>
+                    s.index === slotIndex
+                      ? { ...s, selectedImage: null }
+                      : s,
+                  ),
+                });
+              }}
+              onRefreshQuery={refreshStockQuery}
+              refreshingQuery={refreshingQuery}
+              labels={{
+                assignTo: t.carousels.stockAssignTo,
+                selected: t.carousels.stockSelected,
+                clear: t.carousels.stockClear,
+                refresh: t.carousels.stockRefresh,
+                refreshing: t.carousels.stockRefreshing,
+                noImages: t.carousels.stockNoImages,
+                usedElsewhere: t.carousels.stockUsedElsewhere,
+              }}
+            />
+            <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={() => setStockPicker(null)}
+              >
+                {t.cancel}
+              </button>
+              <button
+                className="btn"
+                type="button"
+                disabled={
+                  loading || stockPicker.slots.some((s) => !s.selectedImage)
+                }
+                onClick={() => saveStockPicksAndRender()}
+              >
+                {t.carousels.renderStock}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

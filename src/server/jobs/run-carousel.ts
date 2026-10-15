@@ -145,6 +145,8 @@ export async function processPendingCarouselJobs() {
 
   let processed = 0;
   for (const row of pending) {
+    // Stock carousel jobs are handled by run-stock-carousel.ts
+    if (row.jobPayload?.imageSource === "stock") continue;
     try {
       const claimed = await db
         .update(carousels)

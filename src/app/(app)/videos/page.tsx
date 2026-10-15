@@ -22,7 +22,12 @@ const STATUS_OPTIONS = [
   "failed",
 ] as const;
 
-const PROVIDER_OPTIONS = ["heygen", "slideshow", "custom"] as const;
+const PROVIDER_OPTIONS = [
+  "heygen",
+  "slideshow",
+  "stock-slideshow",
+  "custom",
+] as const;
 
 type SortKey = "title" | "provider" | "status" | "createdAt";
 type SortDir = "asc" | "desc";
@@ -49,6 +54,7 @@ function providerLabel(
   t: ReturnType<typeof useLocale>["t"],
 ) {
   if (provider === "slideshow") return t.videos.providerSlideshow;
+  if (provider === "stock-slideshow") return t.videos.providerStockSlideshow;
   if (provider === "custom") return t.videos.providerCustom;
   return t.videos.providerHeygen;
 }

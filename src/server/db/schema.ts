@@ -134,6 +134,30 @@ export const reelDrafts = pgTable("vc_reel_drafts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export type StockImageRef = {
+  provider: "pixabay" | "pexels";
+  id: string;
+  previewUrl: string;
+  downloadUrl: string;
+  width?: number;
+  height?: number;
+  photographer?: string;
+  pageUrl?: string;
+  sourceQuery?: string;
+};
+
+export type StockQueryPoolEntry = {
+  query: string;
+  images: StockImageRef[];
+};
+
+export type StockSceneSelection = {
+  index: number;
+  label?: string;
+  approxWordShare: number;
+  selectedImage: StockImageRef;
+};
+
 export type SlideshowJobPayload = {
   elevenLabsVoiceId?: string | null;
   sceneCount?: number;
@@ -147,6 +171,9 @@ export type SlideshowJobPayload = {
   visualArcNotes?: string;
   subtitleNotes?: string;
   blueprintId?: string;
+  /** Stock slideshow only — scenes with user-picked stock images. */
+  stockScenes?: StockSceneSelection[];
+  stockQueryPool?: StockQueryPoolEntry[];
 };
 
 export type CarouselSlide = {
@@ -154,10 +181,13 @@ export type CarouselSlide = {
   headline: string;
   body?: string;
   imagePrompt: string;
+  selectedImage?: StockImageRef | null;
 };
 
 export type CarouselJobPayload = {
   step?: string;
+  /** When "stock", render via stock carousel job; otherwise AI images. */
+  imageSource?: "ai" | "stock";
 };
 
 export const carouselDrafts = pgTable("vc_carousel_drafts", {
@@ -170,6 +200,9 @@ export const carouselDrafts = pgTable("vc_carousel_drafts", {
   audience: text("audience").notNull().default(""),
   productMention: text("product_mention").notNull().default(""),
   slides: jsonb("slides").$type<CarouselSlide[]>().notNull().default([]),
+  stockQueryPool: jsonb("stock_query_pool")
+    .$type<StockQueryPoolEntry[] | null>()
+    .default(null),
   status: text("status").notNull().default("draft"),
   // draft | approved | generating | ready | scheduled | posted | failed
   errorMessage: text("error_message"),
@@ -197,7 +230,7 @@ export const videos = pgTable("vc_videos", {
   reelDraftId: uuid("reel_draft_id")
     .notNull()
     .references(() => reelDrafts.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull().default("heygen"), // heygen | slideshow | custom
+  provider: text("provider").notNull().default("heygen"), // heygen | slideshow | custom | stock-slideshow
   heygenSessionId: text("heygen_session_id"),
   heygenVideoId: text("heygen_video_id"),
   jobPayload: jsonb("job_payload").$type<SlideshowJobPayload | null>(),

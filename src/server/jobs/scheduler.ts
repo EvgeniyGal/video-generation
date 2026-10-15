@@ -1,7 +1,9 @@
 import cron from "node-cron";
 import { processPendingCarouselJobs } from "./run-carousel";
+import { processPendingStockCarouselJobs } from "./run-stock-carousel";
 import { pollHeyGenJobs } from "./poll-heygen";
 import { processPendingSlideshowJobs } from "./run-slideshow";
+import { processPendingStockSlideshowJobs } from "./run-stock-slideshow";
 import { syncBufferMetrics } from "./sync-buffer-metrics";
 
 let started = false;
@@ -43,6 +45,30 @@ export function startBackgroundJobs() {
       }
     } catch (err) {
       console.error("[jobs] carousel poll error", err);
+    }
+  });
+
+  // Pick up pending stock carousel jobs
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      const result = await processPendingStockCarouselJobs();
+      if (result.processed > 0) {
+        console.log(`[jobs] stock-carousel processed=${result.processed}`);
+      }
+    } catch (err) {
+      console.error("[jobs] stock-carousel poll error", err);
+    }
+  });
+
+  // Pick up pending stock slideshow jobs
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      const result = await processPendingStockSlideshowJobs();
+      if (result.processed > 0) {
+        console.log(`[jobs] stock-slideshow processed=${result.processed}`);
+      }
+    } catch (err) {
+      console.error("[jobs] stock-slideshow poll error", err);
     }
   });
 

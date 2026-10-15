@@ -8,6 +8,8 @@ type Settings = {
   openaiConfigured: boolean;
   heygenConfigured: boolean;
   elevenlabsConfigured: boolean;
+  pixabayConfigured: boolean;
+  pexelsConfigured: boolean;
   openaiModel: string;
   openaiImageModel: string;
   bufferAccounts: Array<{
@@ -24,6 +26,8 @@ export default function SettingsPage() {
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [heygenApiKey, setHeygenApiKey] = useState("");
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState("");
+  const [pixabayApiKey, setPixabayApiKey] = useState("");
+  const [pexelsApiKey, setPexelsApiKey] = useState("");
   const [openaiModel, setOpenaiModel] = useState("gpt-4.1-mini");
   const [openaiImageModel, setOpenaiImageModel] = useState(
     "gpt-image-2.5-flare",
@@ -144,6 +148,8 @@ export default function SettingsPage() {
         openaiApiKey: openaiApiKey || undefined,
         heygenApiKey: heygenApiKey || undefined,
         elevenlabsApiKey: elevenlabsApiKey || undefined,
+        pixabayApiKey: pixabayApiKey || undefined,
+        pexelsApiKey: pexelsApiKey || undefined,
         openaiModel,
         openaiImageModel,
       }),
@@ -157,6 +163,8 @@ export default function SettingsPage() {
     setOpenaiApiKey("");
     setHeygenApiKey("");
     setElevenlabsApiKey("");
+    setPixabayApiKey("");
+    setPexelsApiKey("");
     setMessage(t.settings.saved);
     await load();
   }
@@ -278,6 +286,43 @@ export default function SettingsPage() {
             value={elevenlabsApiKey}
             onChange={(e) => setElevenlabsApiKey(e.target.value)}
           />
+        </div>
+        <div>
+          <label className="label">
+            {t.settings.pixabayKey}{" "}
+            {settings.pixabayConfigured
+              ? t.settings.configured
+              : t.settings.notSet}
+          </label>
+          <input
+            className="input"
+            type="password"
+            placeholder={
+              settings.pixabayConfigured ? t.settings.keepBlank : "pixabay-..."
+            }
+            value={pixabayApiKey}
+            onChange={(e) => setPixabayApiKey(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">
+            {t.settings.pexelsKey}{" "}
+            {settings.pexelsConfigured
+              ? t.settings.configured
+              : t.settings.notSet}
+          </label>
+          <input
+            className="input"
+            type="password"
+            placeholder={
+              settings.pexelsConfigured ? t.settings.keepBlank : "pexels-..."
+            }
+            value={pexelsApiKey}
+            onChange={(e) => setPexelsApiKey(e.target.value)}
+          />
+          <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+            {t.settings.stockKeysHint}
+          </div>
         </div>
         <div>
           <div

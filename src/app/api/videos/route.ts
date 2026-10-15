@@ -1,7 +1,12 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { requireSession } from "@/server/auth/session";
 import { db } from "@/server/db";
-import { reelDrafts, scheduledPosts, videos } from "@/server/db/schema";
+import {
+  reelDrafts,
+  scheduledPosts,
+  videos,
+  type StockSceneSelection,
+} from "@/server/db/schema";
 import {
   getIntegrationKey,
   hasIntegrationKey,
@@ -12,8 +17,10 @@ import {
 } from "@/server/blueprints";
 import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
+import { isStockImageRef } from "@/server/integrations/stock-images";
 import { removeStoragePaths } from "@/server/integrations/storage";
 import { enqueueSlideshowJob } from "@/server/jobs/run-slideshow";
+import { enqueueStockSlideshowJob } from "@/server/jobs/run-stock-slideshow";
 import { assertFfmpegAvailable } from "@/server/video/ffmpeg-slideshow";
 import { derivePublishStatus } from "@/lib/publish-status";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
@@ -66,7 +73,9 @@ export async function POST(request: Request) {
     if (!draftIds.length) return jsonError("draftId or draftIds required");
 
     const type =
-      body.type === "slideshow" || body.type === "heygen"
+      body.type === "slideshow" ||
+      body.type === "heygen" ||
+      body.type === "stock-slideshow"
         ? body.type
         : "heygen";
 
@@ -192,7 +201,143 @@ export async function POST(request: Request) {
       return jsonOk({ videos: created, errors });
     }
 
-    // Slideshow
+    if (type === "stock-slideshow") {
+      if (!(await hasIntegrationKey("elevenlabs"))) {
+        return jsonError("ElevenLabs API key not configured", 400);
+      }
+      if (
+        !(await hasIntegrationKey("pixabay")) &&
+        !(await hasIntegrationKey("pexels"))
+      ) {
+        return jsonError("Configure Pixabay and/or Pexels API keys", 400);
+      }
+
+      const elevenLabsVoiceId = body.elevenLabsVoiceId
+        ? String(body.elevenLabsVoiceId)
+        : null;
+      if (!elevenLabsVoiceId) {
+        return jsonError(
+          "elevenLabsVoiceId is required for stock slideshow",
+          400,
+        );
+      }
+
+      const subtitles =
+        body.subtitles !== undefined
+          ? body.subtitles !== false
+          : bpDefaults.subtitles !== false;
+
+      const rawScenes = Array.isArray(body.stockScenes)
+        ? body.stockScenes
+        : [];
+      const stockScenes: StockSceneSelection[] = [];
+      for (let i = 0; i < rawScenes.length; i++) {
+        const s = rawScenes[i] as {
+          index?: number;
+          label?: string;
+          approxWordShare?: number;
+          selectedImage?: unknown;
+        };
+        if (!isStockImageRef(s.selectedImage)) {
+          return jsonError(`Scene ${i + 1} needs a selected stock image`, 400);
+        }
+        stockScenes.push({
+          index: typeof s.index === "number" ? s.index : i,
+          label: s.label ? String(s.label) : undefined,
+          approxWordShare:
+            typeof s.approxWordShare === "number" && s.approxWordShare > 0
+              ? s.approxWordShare
+              : 1,
+          selectedImage: s.selectedImage,
+        });
+      }
+      if (stockScenes.length < 3) {
+        return jsonError("stockScenes requires at least 3 scenes with images", 400);
+      }
+
+      try {
+        assertFfmpegAvailable();
+      } catch (err) {
+        return jsonError(
+          err instanceof Error ? err.message : "FFmpeg required",
+          400,
+        );
+      }
+
+      for (const draftId of draftIds) {
+        try {
+          const draft = await db.query.reelDrafts.findFirst({
+            where: eq(reelDrafts.id, draftId),
+          });
+          if (!draft) {
+            errors.push({ draftId, error: "Draft not found" });
+            continue;
+          }
+
+          if (
+            ["generating", "ready", "scheduled", "posted"].includes(draft.status)
+          ) {
+            errors.push({
+              draftId,
+              error: `Draft already in status ${draft.status}`,
+            });
+            continue;
+          }
+
+          const [video] = await db
+            .insert(videos)
+            .values({
+              reelDraftId: draftId,
+              provider: "stock-slideshow",
+              status: "pending",
+              jobPayload: {
+                elevenLabsVoiceId,
+                sceneCount: stockScenes.length,
+                consistentCharacter: false,
+                subtitles,
+                step: "queued",
+                stockScenes,
+                stockQueryPool: Array.isArray(body.stockQueryPool)
+                  ? body.stockQueryPool
+                  : undefined,
+                blueprintId: blueprint?.id,
+                visualStyle: blueprint?.visualStyle || undefined,
+                dramaNotes: blueprint?.dramaNotes || undefined,
+                visualArcNotes: blueprint?.visualArcNotes || undefined,
+                subtitleNotes: blueprint?.subtitleNotes || undefined,
+              },
+            })
+            .returning();
+
+          await db
+            .update(reelDrafts)
+            .set({
+              status: "generating",
+              updatedAt: new Date(),
+              errorMessage: null,
+            })
+            .where(eq(reelDrafts.id, draftId));
+
+          created.push(video);
+          enqueueStockSlideshowJob(video.id);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Failed";
+          await db
+            .update(reelDrafts)
+            .set({
+              status: "failed",
+              errorMessage: message,
+              updatedAt: new Date(),
+            })
+            .where(eq(reelDrafts.id, draftId));
+          errors.push({ draftId, error: message });
+        }
+      }
+
+      return jsonOk({ videos: created, errors });
+    }
+
+    // Slideshow (AI images — unchanged)
     if (!(await hasIntegrationKey("openai"))) {
       return jsonError("OpenAI API key not configured", 400);
     }

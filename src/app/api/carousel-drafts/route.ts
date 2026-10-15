@@ -151,15 +151,35 @@ export async function PATCH(request: Request) {
             headline?: string;
             body?: string;
             imagePrompt?: string;
+            selectedImage?: unknown;
           },
           idx: number,
-        ) => ({
-          index: typeof s.index === "number" ? s.index : idx,
-          headline: String(s.headline ?? ""),
-          body: String(s.body ?? ""),
-          imagePrompt: String(s.imagePrompt ?? ""),
-        }),
+        ) => {
+          const slide: {
+            index: number;
+            headline: string;
+            body: string;
+            imagePrompt: string;
+            selectedImage?: typeof s.selectedImage;
+          } = {
+            index: typeof s.index === "number" ? s.index : idx,
+            headline: String(s.headline ?? ""),
+            body: String(s.body ?? ""),
+            imagePrompt: String(s.imagePrompt ?? ""),
+          };
+          if (s.selectedImage === null) {
+            slide.selectedImage = null;
+          } else if (s.selectedImage && typeof s.selectedImage === "object") {
+            slide.selectedImage = s.selectedImage;
+          }
+          return slide;
+        },
       );
+    }
+    if (body.stockQueryPool === null) {
+      patch.stockQueryPool = null;
+    } else if (Array.isArray(body.stockQueryPool)) {
+      patch.stockQueryPool = body.stockQueryPool;
     }
     if (typeof body.status === "string") {
       const allowed = ["draft", "approved", "failed"];

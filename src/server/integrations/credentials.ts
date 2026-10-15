@@ -7,7 +7,12 @@ import {
 } from "@/server/db/schema";
 import { decryptSecret, encryptSecret } from "@/server/crypto/secrets";
 
-export type IntegrationProvider = "openai" | "heygen" | "elevenlabs";
+export type IntegrationProvider =
+  | "openai"
+  | "heygen"
+  | "elevenlabs"
+  | "pixabay"
+  | "pexels";
 
 export async function setIntegrationKey(
   provider: IntegrationProvider,

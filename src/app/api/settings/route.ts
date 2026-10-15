@@ -22,6 +22,8 @@ export async function GET() {
       openaiConfigured: await hasIntegrationKey("openai"),
       heygenConfigured: await hasIntegrationKey("heygen"),
       elevenlabsConfigured: await hasIntegrationKey("elevenlabs"),
+      pixabayConfigured: await hasIntegrationKey("pixabay"),
+      pexelsConfigured: await hasIntegrationKey("pexels"),
       brandTone: await getSetting("brand_tone"),
       globalStyle: await getSetting("global_style"),
       openaiModel: await getSetting("openai_model", "gpt-4.1-mini"),
@@ -57,6 +59,12 @@ export async function PUT(request: Request) {
       body.elevenlabsApiKey.trim()
     ) {
       await setIntegrationKey("elevenlabs", body.elevenlabsApiKey);
+    }
+    if (typeof body.pixabayApiKey === "string" && body.pixabayApiKey.trim()) {
+      await setIntegrationKey("pixabay", body.pixabayApiKey);
+    }
+    if (typeof body.pexelsApiKey === "string" && body.pexelsApiKey.trim()) {
+      await setIntegrationKey("pexels", body.pexelsApiKey);
     }
     if (typeof body.brandTone === "string") {
       await setSetting("brand_tone", body.brandTone);

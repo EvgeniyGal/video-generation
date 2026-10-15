@@ -11,6 +11,12 @@ import {
 import { createPortal } from "react-dom";
 import { Check, Clapperboard, Loader2, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import {
+  StockQueryGallery,
+  type StockPoolEntry,
+  type StockSlot,
+} from "@/components/StockQueryGallery";
+import type { StockImageRef } from "@/server/db/schema";
 import { focusField, reportFormValidity } from "@/lib/form-focus";
 import { useLocale } from "@/i18n/LocaleProvider";
 
@@ -63,7 +69,11 @@ type GenerateTarget =
   | { mode: "one"; id: string }
   | { mode: "many"; ids: string[] };
 
-type VideoGenType = "heygen" | "slideshow";
+type VideoGenType = "heygen" | "slideshow" | "stock-slideshow";
+
+type StockSceneSlot = StockSlot & {
+  approxWordShare: number;
+};
 
 type SortKey = "caption" | "status" | "createdAt";
 type SortDir = "asc" | "desc";
@@ -195,6 +205,18 @@ export default function DraftsPage() {
   const [genConsistentCharacter, setGenConsistentCharacter] = useState(true);
   const [genSubtitles, setGenSubtitles] = useState(true);
   const [genBlueprintId, setGenBlueprintId] = useState("");
+  const [stockPool, setStockPool] = useState<StockPoolEntry[] | null>(null);
+  const [stockScenes, setStockScenes] = useState<StockSceneSlot[] | null>(null);
+  const [stockActiveSlot, setStockActiveSlot] = useState(0);
+  const [stockRefreshingQuery, setStockRefreshingQuery] = useState<
+    string | null
+  >(null);
+  const [stockMeta, setStockMeta] = useState<{
+    visualStyle?: string;
+    dramaNotes?: string;
+    visualArcNotes?: string;
+    subtitleNotes?: string;
+  } | null>(null);
   const [blueprints, setBlueprints] = useState<
     Array<{
       id: string;
@@ -459,6 +481,7 @@ export default function DraftsPage() {
     setGenVoiceId(draft?.voiceId ?? "");
     setGenAvatarId(draft?.avatarId ?? "");
     setGenType("heygen");
+    resetStockPicker();
     const def = blueprints.find((b) => b.isDefault);
     const bpId = def?.id ?? genBlueprintId;
     setGenBlueprintId(bpId);
@@ -474,6 +497,7 @@ export default function DraftsPage() {
     setGenVoiceId(first?.voiceId ?? "");
     setGenAvatarId(first?.avatarId ?? "");
     setGenType("heygen");
+    resetStockPicker();
     const def = blueprints.find((b) => b.isDefault);
     const bpId = def?.id ?? genBlueprintId;
     setGenBlueprintId(bpId);
@@ -481,6 +505,92 @@ export default function DraftsPage() {
     setGenConsistentCharacter(def?.defaults?.consistentCharacter !== false);
     setGenSubtitles(def?.defaults?.subtitles !== false);
     setGenerateTarget({ mode: "many", ids: [...selected] });
+  }
+
+  function resetStockPicker() {
+    setStockPool(null);
+    setStockScenes(null);
+    setStockActiveSlot(0);
+    setStockRefreshingQuery(null);
+    setStockMeta(null);
+  }
+
+  async function prepareStockSlideshow(draftId: string) {
+    if (!genElevenVoiceId) {
+      setMessage(t.drafts.needElevenVoice);
+      focusField("gen-eleven-voice");
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    const res = await fetch("/api/stock-images/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "slideshow",
+        draftId,
+        sceneCount: genSceneCount,
+        blueprintId: genBlueprintId || undefined,
+      }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setMessage(data.error || "Stock prepare failed");
+      return;
+    }
+    const pool = (data.pool ?? []) as StockPoolEntry[];
+    const scenes: StockSceneSlot[] = (data.scenes ?? []).map(
+      (s: {
+        index: number;
+        label: string;
+        approxWordShare: number;
+        selectedImage?: StockImageRef | null;
+      }) => ({
+        index: s.index,
+        label: s.label,
+        approxWordShare: s.approxWordShare ?? 1,
+        selectedImage: s.selectedImage ?? null,
+      }),
+    );
+    setStockPool(pool);
+    setStockScenes(scenes);
+    setStockActiveSlot(scenes[0]?.index ?? 0);
+    setStockMeta({
+      visualStyle: data.visualStyle,
+      dramaNotes: data.dramaNotes,
+      visualArcNotes: data.visualArcNotes,
+      subtitleNotes: data.subtitleNotes,
+    });
+  }
+
+  async function refreshStockSlideshowQuery(
+    originalQuery: string,
+    editedQuery: string,
+  ) {
+    if (!stockPool) return;
+    setStockRefreshingQuery(originalQuery);
+    const res = await fetch("/api/stock-images/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        q: editedQuery,
+        perQuery: 5,
+        orientation: "vertical",
+      }),
+    });
+    const data = await res.json();
+    setStockRefreshingQuery(null);
+    if (!res.ok) {
+      setMessage(data.error || "Search failed");
+      return;
+    }
+    const images = (data.images ?? []) as StockImageRef[];
+    setStockPool(
+      stockPool.map((entry) =>
+        entry.query === originalQuery ? { query: editedQuery, images } : entry,
+      ),
+    );
   }
 
   async function confirmGenerate(e?: FormEvent) {
@@ -499,10 +609,28 @@ export default function DraftsPage() {
         ? [generateTarget.id]
         : generateTarget.ids;
 
-    if (genType === "slideshow" && !genElevenVoiceId) {
+    if (
+      (genType === "slideshow" || genType === "stock-slideshow") &&
+      !genElevenVoiceId
+    ) {
       setMessage(t.drafts.needElevenVoice);
       focusField("gen-eleven-voice");
       return;
+    }
+
+    if (genType === "stock-slideshow") {
+      if (draftIds.length !== 1) {
+        setMessage(t.drafts.stockOneDraftOnly);
+        return;
+      }
+      if (!stockScenes || !stockPool) {
+        await prepareStockSlideshow(draftIds[0]);
+        return;
+      }
+      if (stockScenes.some((s) => !s.selectedImage)) {
+        setMessage(t.drafts.stockNeedAllScenes);
+        return;
+      }
     }
 
     setLoading(true);
@@ -517,15 +645,31 @@ export default function DraftsPage() {
             avatarId: genAvatarId || null,
             blueprintId: genBlueprintId || undefined,
           }
-        : {
-            draftIds,
-            type: "slideshow" as const,
-            elevenLabsVoiceId: genElevenVoiceId,
-            sceneCount: genSceneCount,
-            consistentCharacter: genConsistentCharacter,
-            subtitles: genSubtitles,
-            blueprintId: genBlueprintId || undefined,
-          };
+        : genType === "stock-slideshow"
+          ? {
+              draftIds,
+              type: "stock-slideshow" as const,
+              elevenLabsVoiceId: genElevenVoiceId,
+              subtitles: genSubtitles,
+              blueprintId: genBlueprintId || undefined,
+              stockScenes: stockScenes!.map((s) => ({
+                index: s.index,
+                label: s.label,
+                approxWordShare: s.approxWordShare,
+                selectedImage: s.selectedImage,
+              })),
+              stockQueryPool: stockPool,
+              ...stockMeta,
+            }
+          : {
+              draftIds,
+              type: "slideshow" as const,
+              elevenLabsVoiceId: genElevenVoiceId,
+              sceneCount: genSceneCount,
+              consistentCharacter: genConsistentCharacter,
+              subtitles: genSubtitles,
+              blueprintId: genBlueprintId || undefined,
+            };
 
     const res = await fetch("/api/videos", {
       method: "POST",
@@ -545,6 +689,7 @@ export default function DraftsPage() {
           : ""),
     );
     setGenerateTarget(null);
+    resetStockPicker();
     if (generateTarget.mode === "many") setSelected(new Set());
     await load();
   }
@@ -1150,7 +1295,10 @@ export default function DraftsPage() {
           <form
             className="card stack"
             style={{
-              width: "min(560px, 100%)",
+              width:
+                genType === "stock-slideshow" && stockPool
+                  ? "min(920px, 100%)"
+                  : "min(560px, 100%)",
               maxHeight: "90vh",
               overflow: "auto",
             }}
@@ -1169,15 +1317,23 @@ export default function DraftsPage() {
               <select
                 className="select"
                 value={genType}
-                onChange={(e) => setGenType(e.target.value as VideoGenType)}
+                onChange={(e) => {
+                  setGenType(e.target.value as VideoGenType);
+                  resetStockPicker();
+                }}
               >
                 <option value="heygen">{t.drafts.typeHeygen}</option>
                 <option value="slideshow">{t.drafts.typeSlideshow}</option>
+                <option value="stock-slideshow">
+                  {t.drafts.typeStockSlideshow}
+                </option>
               </select>
               <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
                 {genType === "heygen"
                   ? t.drafts.typeHeygenHint
-                  : t.drafts.typeSlideshowHint}
+                  : genType === "stock-slideshow"
+                    ? t.drafts.typeStockSlideshowHint
+                    : t.drafts.typeSlideshowHint}
               </div>
             </div>
 
@@ -1290,7 +1446,9 @@ export default function DraftsPage() {
                   <select
                     id="gen-eleven-voice"
                     className="select"
-                    required={genType === "slideshow"}
+                    required={
+                      genType === "slideshow" || genType === "stock-slideshow"
+                    }
                     value={genElevenVoiceId}
                     onChange={(e) => setGenElevenVoiceId(e.target.value)}
                   >
@@ -1315,11 +1473,12 @@ export default function DraftsPage() {
                     max={8}
                     step={1}
                     value={genSceneCount}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setGenSceneCount(
                         Math.min(8, Math.max(3, Number(e.target.value) || 4)),
-                      )
-                    }
+                      );
+                      if (genType === "stock-slideshow") resetStockPicker();
+                    }}
                   />
                   <div
                     className="muted"
@@ -1328,25 +1487,27 @@ export default function DraftsPage() {
                     {t.drafts.sceneCountHint}
                   </div>
                 </div>
-                <label
-                  className="row"
-                  style={{ gap: 8, alignItems: "flex-start" }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={genConsistentCharacter}
-                    onChange={(e) =>
-                      setGenConsistentCharacter(e.target.checked)
-                    }
-                    style={{ marginTop: 4 }}
-                  />
-                  <span>
-                    <strong>{t.drafts.consistentCharacter}</strong>
-                    <div className="muted" style={{ fontSize: "0.85rem" }}>
-                      {t.drafts.consistentCharacterHint}
-                    </div>
-                  </span>
-                </label>
+                {genType === "slideshow" ? (
+                  <label
+                    className="row"
+                    style={{ gap: 8, alignItems: "flex-start" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={genConsistentCharacter}
+                      onChange={(e) =>
+                        setGenConsistentCharacter(e.target.checked)
+                      }
+                      style={{ marginTop: 4 }}
+                    />
+                    <span>
+                      <strong>{t.drafts.consistentCharacter}</strong>
+                      <div className="muted" style={{ fontSize: "0.85rem" }}>
+                        {t.drafts.consistentCharacterHint}
+                      </div>
+                    </span>
+                  </label>
+                ) : null}
                 <label
                   className="row"
                   style={{ gap: 8, alignItems: "flex-start" }}
@@ -1364,6 +1525,49 @@ export default function DraftsPage() {
                     </div>
                   </span>
                 </label>
+                {genType === "stock-slideshow" && stockPool && stockScenes ? (
+                  <div className="stack" style={{ gap: 8 }}>
+                    <div className="label">{t.drafts.stockPickerTitle}</div>
+                    <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+                      {t.drafts.stockAssignHint}
+                    </p>
+                    <StockQueryGallery
+                      pool={stockPool}
+                      slots={stockScenes}
+                      activeSlotIndex={stockActiveSlot}
+                      onActiveSlotChange={setStockActiveSlot}
+                      onSelectImage={(slotIndex, image) => {
+                        setStockScenes(
+                          stockScenes.map((s) =>
+                            s.index === slotIndex
+                              ? { ...s, selectedImage: image }
+                              : s,
+                          ),
+                        );
+                      }}
+                      onClearSlot={(slotIndex) => {
+                        setStockScenes(
+                          stockScenes.map((s) =>
+                            s.index === slotIndex
+                              ? { ...s, selectedImage: null }
+                              : s,
+                          ),
+                        );
+                      }}
+                      onRefreshQuery={refreshStockSlideshowQuery}
+                      refreshingQuery={stockRefreshingQuery}
+                      labels={{
+                        assignTo: t.carousels.stockAssignTo,
+                        selected: t.carousels.stockSelected,
+                        clear: t.carousels.stockClear,
+                        refresh: t.carousels.stockRefresh,
+                        refreshing: t.carousels.stockRefreshing,
+                        noImages: t.carousels.stockNoImages,
+                        usedElsewhere: t.carousels.stockUsedElsewhere,
+                      }}
+                    />
+                  </div>
+                ) : null}
               </>
             )}
 
@@ -1379,13 +1583,22 @@ export default function DraftsPage() {
 
             <div className="row">
               <button className="btn" type="submit" disabled={loading}>
-                {t.drafts.startGenerate}
+                {loading
+                  ? genType === "stock-slideshow" && !stockPool
+                    ? t.drafts.preparingStock
+                    : t.drafts.startGenerate
+                  : genType === "stock-slideshow" && !stockPool
+                    ? t.drafts.prepareStock
+                    : t.drafts.startGenerate}
               </button>
               <button
                 className="btn btn-secondary"
                 type="button"
                 disabled={loading}
-                onClick={() => setGenerateTarget(null)}
+                onClick={() => {
+                  setGenerateTarget(null);
+                  resetStockPicker();
+                }}
               >
                 {t.cancel}
               </button>
