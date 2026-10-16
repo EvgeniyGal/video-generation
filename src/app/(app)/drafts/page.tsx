@@ -204,7 +204,7 @@ export default function DraftsPage() {
   const [genSceneCount, setGenSceneCount] = useState(4);
   const [genConsistentCharacter, setGenConsistentCharacter] = useState(true);
   const [genSubtitles, setGenSubtitles] = useState(true);
-  const [genBlueprintId, setGenBlueprintId] = useState("");
+  const [genTemplateId, setGenTemplateId] = useState("");
   const [stockPool, setStockPool] = useState<StockPoolEntry[] | null>(null);
   const [stockScenes, setStockScenes] = useState<StockSceneSlot[] | null>(null);
   const [stockActiveSlot, setStockActiveSlot] = useState(0);
@@ -217,7 +217,7 @@ export default function DraftsPage() {
     visualArcNotes?: string;
     subtitleNotes?: string;
   } | null>(null);
-  const [blueprints, setBlueprints] = useState<
+  const [templates, setTemplates] = useState<
     Array<{
       id: string;
       name: string;
@@ -244,18 +244,18 @@ export default function DraftsPage() {
     setDrafts(data.drafts ?? []);
   }, []);
 
-  const loadBlueprints = useCallback(async () => {
-    const res = await fetch("/api/blueprints");
+  const loadTemplates = useCallback(async () => {
+    const res = await fetch("/api/templates");
     const data = await res.json();
-    const list = data.blueprints ?? [];
-    setBlueprints(list);
+    const list = data.templates ?? [];
+    setTemplates(list);
     const def = list.find((b: { isDefault: boolean }) => b.isDefault);
-    if (def) setGenBlueprintId(def.id);
+    if (def) setGenTemplateId(def.id);
   }, []);
 
   useEffect(() => {
     load();
-    loadBlueprints();
+    loadTemplates();
     fetch("/api/elevenlabs/voices")
       .then(async (r) => {
         if (!r.ok) return;
@@ -464,8 +464,8 @@ export default function DraftsPage() {
     await load();
   }
 
-  function applyBlueprintDefaults(blueprintId: string) {
-    const bp = blueprints.find((b) => b.id === blueprintId);
+  function applyTemplateDefaults(templateId: string) {
+    const bp = templates.find((b) => b.id === templateId);
     if (!bp?.defaults) return;
     if (bp.defaults.sceneCount) setGenSceneCount(bp.defaults.sceneCount);
     if (bp.defaults.consistentCharacter !== undefined) {
@@ -482,9 +482,9 @@ export default function DraftsPage() {
     setGenAvatarId(draft?.avatarId ?? "");
     setGenType("heygen");
     resetStockPicker();
-    const def = blueprints.find((b) => b.isDefault);
-    const bpId = def?.id ?? genBlueprintId;
-    setGenBlueprintId(bpId);
+    const def = templates.find((b) => b.isDefault);
+    const bpId = def?.id ?? genTemplateId;
+    setGenTemplateId(bpId);
     setGenSceneCount(def?.defaults?.sceneCount ?? 4);
     setGenConsistentCharacter(def?.defaults?.consistentCharacter !== false);
     setGenSubtitles(def?.defaults?.subtitles !== false);
@@ -498,9 +498,9 @@ export default function DraftsPage() {
     setGenAvatarId(first?.avatarId ?? "");
     setGenType("heygen");
     resetStockPicker();
-    const def = blueprints.find((b) => b.isDefault);
-    const bpId = def?.id ?? genBlueprintId;
-    setGenBlueprintId(bpId);
+    const def = templates.find((b) => b.isDefault);
+    const bpId = def?.id ?? genTemplateId;
+    setGenTemplateId(bpId);
     setGenSceneCount(def?.defaults?.sceneCount ?? 4);
     setGenConsistentCharacter(def?.defaults?.consistentCharacter !== false);
     setGenSubtitles(def?.defaults?.subtitles !== false);
@@ -530,7 +530,7 @@ export default function DraftsPage() {
         kind: "slideshow",
         draftId,
         sceneCount: genSceneCount,
-        blueprintId: genBlueprintId || undefined,
+        templateId: genTemplateId || undefined,
       }),
     });
     const data = await res.json();
@@ -643,7 +643,7 @@ export default function DraftsPage() {
             type: "heygen" as const,
             voiceId: genVoiceId || null,
             avatarId: genAvatarId || null,
-            blueprintId: genBlueprintId || undefined,
+            templateId: genTemplateId || undefined,
           }
         : genType === "stock-slideshow"
           ? {
@@ -651,7 +651,7 @@ export default function DraftsPage() {
               type: "stock-slideshow" as const,
               elevenLabsVoiceId: genElevenVoiceId,
               subtitles: genSubtitles,
-              blueprintId: genBlueprintId || undefined,
+              templateId: genTemplateId || undefined,
               stockScenes: stockScenes!.map((s) => ({
                 index: s.index,
                 label: s.label,
@@ -668,7 +668,7 @@ export default function DraftsPage() {
               sceneCount: genSceneCount,
               consistentCharacter: genConsistentCharacter,
               subtitles: genSubtitles,
-              blueprintId: genBlueprintId || undefined,
+              templateId: genTemplateId || undefined,
             };
 
     const res = await fetch("/api/videos", {
@@ -1338,26 +1338,26 @@ export default function DraftsPage() {
             </div>
 
             <div>
-              <label className="label">{t.drafts.blueprint}</label>
+              <label className="label">{t.drafts.template}</label>
               <select
                 className="select"
-                value={genBlueprintId}
+                value={genTemplateId}
                 onChange={(e) => {
                   const id = e.target.value;
-                  setGenBlueprintId(id);
-                  if (id) applyBlueprintDefaults(id);
+                  setGenTemplateId(id);
+                  if (id) applyTemplateDefaults(id);
                 }}
               >
-                <option value="">{t.blueprints.selectNone}</option>
-                {blueprints.map((b) => (
+                <option value="">{t.templates.selectNone}</option>
+                {templates.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
-                    {b.isDefault ? ` (${t.blueprints.defaultBadge})` : ""}
+                    {b.isDefault ? ` (${t.templates.defaultBadge})` : ""}
                   </option>
                 ))}
               </select>
               <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
-                {t.drafts.blueprintHint}
+                {t.drafts.templateHint}
               </div>
             </div>
 

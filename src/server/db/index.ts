@@ -27,6 +27,14 @@ function createDb(): Db {
 }
 
 function getDb(): Db {
+  // Recreate if HMR swapped schema (e.g. blueprints → templates) so db.query.* stays valid.
+  const existing = globalForDb.__reelsDb;
+  if (
+    existing &&
+    !(existing as { query?: { templates?: unknown } }).query?.templates
+  ) {
+    globalForDb.__reelsDb = undefined;
+  }
   if (!globalForDb.__reelsDb) {
     globalForDb.__reelsDb = createDb();
   }

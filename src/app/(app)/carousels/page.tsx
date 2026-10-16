@@ -71,8 +71,8 @@ export default function CarouselsPage() {
   const [slideCount, setSlideCount] = useState(5);
   const [packCount, setPackCount] = useState(1);
   const [language, setLanguage] = useState<"en" | "ua">("en");
-  const [blueprintId, setBlueprintId] = useState("");
-  const [blueprints, setBlueprints] = useState<
+  const [templateId, setTemplateId] = useState("");
+  const [templates, setTemplates] = useState<
     Array<{
       id: string;
       name: string;
@@ -85,18 +85,18 @@ export default function CarouselsPage() {
     const [dRes, cRes, bRes] = await Promise.all([
       fetch("/api/carousel-drafts"),
       fetch("/api/carousels"),
-      fetch("/api/blueprints"),
+      fetch("/api/templates"),
     ]);
     const dData = await dRes.json();
     const cData = await cRes.json();
     const bData = await bRes.json();
     setDrafts(dData.drafts ?? []);
     setCarousels(cData.carousels ?? []);
-    const list = bData.blueprints ?? [];
-    setBlueprints(list);
+    const list = bData.templates ?? [];
+    setTemplates(list);
     const def = list.find((b: { isDefault: boolean }) => b.isDefault);
     if (def) {
-      setBlueprintId(def.id);
+      setTemplateId(def.id);
       if (def.defaults?.slideCount) setSlideCount(def.defaults.slideCount);
     }
   }, []);
@@ -168,7 +168,7 @@ export default function CarouselsPage() {
         slideCount,
         count: packCount,
         language,
-        blueprintId: blueprintId || undefined,
+        templateId: templateId || undefined,
       }),
     });
     const data = await res.json();
@@ -628,29 +628,29 @@ export default function CarouselsPage() {
               />
             </div>
             <div>
-              <label className="label">{t.carousels.blueprint}</label>
+              <label className="label">{t.carousels.template}</label>
               <select
                 className="select"
-                value={blueprintId}
+                value={templateId}
                 onChange={(e) => {
                   const id = e.target.value;
-                  setBlueprintId(id);
-                  const bp = blueprints.find((b) => b.id === id);
+                  setTemplateId(id);
+                  const bp = templates.find((b) => b.id === id);
                   if (bp?.defaults?.slideCount) {
                     setSlideCount(bp.defaults.slideCount);
                   }
                 }}
               >
-                <option value="">{t.blueprints.selectNone}</option>
-                {blueprints.map((b) => (
+                <option value="">{t.templates.selectNone}</option>
+                {templates.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
-                    {b.isDefault ? ` (${t.blueprints.defaultBadge})` : ""}
+                    {b.isDefault ? ` (${t.templates.defaultBadge})` : ""}
                   </option>
                 ))}
               </select>
               <div className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
-                {t.carousels.blueprintHint}
+                {t.carousels.templateHint}
               </div>
             </div>
             <div className="row" style={{ gap: 12 }}>

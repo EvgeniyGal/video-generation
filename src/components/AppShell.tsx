@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const nav = [
     { href: "/dashboard", label: t.nav.dashboard },
     { href: "/drafts", label: t.nav.drafts },
-    { href: "/blueprints", label: t.nav.blueprints },
+    { href: "/templates", label: t.nav.templates },
     { href: "/carousels", label: t.nav.carousels },
     { href: "/videos", label: t.nav.videos },
     { href: "/schedule", label: t.nav.schedule },

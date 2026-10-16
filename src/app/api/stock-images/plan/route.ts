@@ -13,9 +13,9 @@ import {
   planStockSlideshowQueries,
 } from "@/server/video/stock-query-plan";
 import {
-  normalizeBlueprintDefaults,
-  resolveBlueprint,
-} from "@/server/blueprints";
+  normalizeTemplateDefaults,
+  resolveTemplate,
+} from "@/server/templates";
 import { apiHandler, jsonError, jsonOk } from "@/lib/api";
 
 export async function POST(request: Request) {
@@ -99,15 +99,19 @@ export async function POST(request: Request) {
     });
     if (!draft) return jsonError("Draft not found", 404);
 
-    const blueprint = await resolveBlueprint(
-      body.blueprintId ? String(body.blueprintId) : null,
+    const template = await resolveTemplate(
+      body.templateId
+        ? String(body.templateId)
+        : body.blueprintId
+          ? String(body.blueprintId)
+          : null,
     );
-    const bpDefaults = normalizeBlueprintDefaults(blueprint?.defaults);
+    const templateDefaults = normalizeTemplateDefaults(template?.defaults);
     const sceneCount = Math.min(
       8,
       Math.max(
         3,
-        Number(body.sceneCount) || bpDefaults.sceneCount || 4,
+        Number(body.sceneCount) || templateDefaults.sceneCount || 4,
       ),
     );
 
@@ -116,11 +120,11 @@ export async function POST(request: Request) {
       model: chatModel,
       script: draft.script,
       hook: draft.hook,
-      visualStyle: blueprint?.visualStyle || draft.visualStyle,
+      visualStyle: template?.visualStyle || draft.visualStyle,
       language: draft.language,
       sceneCount,
-      dramaNotes: blueprint?.dramaNotes,
-      visualArcNotes: blueprint?.visualArcNotes,
+      dramaNotes: template?.dramaNotes,
+      visualArcNotes: template?.visualArcNotes,
     });
 
     const pool = await searchStockImagesBatch({
@@ -140,11 +144,11 @@ export async function POST(request: Request) {
         approxWordShare: s.approxWordShare,
         selectedImage: null,
       })),
-      blueprintId: blueprint?.id ?? null,
-      visualStyle: blueprint?.visualStyle || draft.visualStyle,
-      dramaNotes: blueprint?.dramaNotes || "",
-      visualArcNotes: blueprint?.visualArcNotes || "",
-      subtitleNotes: blueprint?.subtitleNotes || "",
+      templateId: template?.id ?? null,
+      visualStyle: template?.visualStyle || draft.visualStyle,
+      dramaNotes: template?.dramaNotes || "",
+      visualArcNotes: template?.visualArcNotes || "",
+      subtitleNotes: template?.subtitleNotes || "",
     });
   });
 }

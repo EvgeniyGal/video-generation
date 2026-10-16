@@ -12,9 +12,9 @@ import {
   hasIntegrationKey,
 } from "@/server/integrations/credentials";
 import {
-  normalizeBlueprintDefaults,
-  resolveBlueprint,
-} from "@/server/blueprints";
+  normalizeTemplateDefaults,
+  resolveTemplate,
+} from "@/server/templates";
 import { createVideoAgentSession } from "@/server/integrations/heygen";
 import { buildHeyGenPrompt } from "@/server/integrations/openai";
 import { isStockImageRef } from "@/server/integrations/stock-images";
@@ -79,10 +79,14 @@ export async function POST(request: Request) {
         ? body.type
         : "heygen";
 
-    const blueprint = await resolveBlueprint(
-      body.blueprintId ? String(body.blueprintId) : null,
+    const template = await resolveTemplate(
+      body.templateId
+        ? String(body.templateId)
+        : body.blueprintId
+          ? String(body.blueprintId)
+          : null,
     );
-    const bpDefaults = normalizeBlueprintDefaults(blueprint?.defaults);
+    const templateDefaults = normalizeTemplateDefaults(template?.defaults);
 
     const created = [];
     const errors: Array<{ draftId: string; error: string }> = [];
@@ -147,12 +151,12 @@ export async function POST(request: Request) {
             hashtags: draft.hashtags ?? [],
             cta: draft.cta,
             visualStyle:
-              blueprint?.visualStyle?.trim() || draft.visualStyle,
+              template?.visualStyle?.trim() || draft.visualStyle,
             suggestedDurationSec: draft.suggestedDurationSec ?? 30,
             language: draft.language,
-            dramaNotes: blueprint?.dramaNotes,
-            visualArcNotes: blueprint?.visualArcNotes,
-            heygenNotes: bpDefaults.heygenNotes,
+            dramaNotes: template?.dramaNotes,
+            visualArcNotes: template?.visualArcNotes,
+            heygenNotes: templateDefaults.heygenNotes,
           });
 
           const session = await createVideoAgentSession(apiKey, {
@@ -225,7 +229,7 @@ export async function POST(request: Request) {
       const subtitles =
         body.subtitles !== undefined
           ? body.subtitles !== false
-          : bpDefaults.subtitles !== false;
+          : templateDefaults.subtitles !== false;
 
       const rawScenes = Array.isArray(body.stockScenes)
         ? body.stockScenes
@@ -300,11 +304,11 @@ export async function POST(request: Request) {
                 stockQueryPool: Array.isArray(body.stockQueryPool)
                   ? body.stockQueryPool
                   : undefined,
-                blueprintId: blueprint?.id,
-                visualStyle: blueprint?.visualStyle || undefined,
-                dramaNotes: blueprint?.dramaNotes || undefined,
-                visualArcNotes: blueprint?.visualArcNotes || undefined,
-                subtitleNotes: blueprint?.subtitleNotes || undefined,
+                templateId: template?.id,
+                visualStyle: template?.visualStyle || undefined,
+                dramaNotes: template?.dramaNotes || undefined,
+                visualArcNotes: template?.visualArcNotes || undefined,
+                subtitleNotes: template?.subtitleNotes || undefined,
               },
             })
             .returning();
@@ -356,17 +360,17 @@ export async function POST(request: Request) {
       8,
       Math.max(
         3,
-        Number(body.sceneCount) || bpDefaults.sceneCount || 4,
+        Number(body.sceneCount) || templateDefaults.sceneCount || 4,
       ),
     );
     const consistentCharacter =
       body.consistentCharacter !== undefined
         ? body.consistentCharacter !== false
-        : bpDefaults.consistentCharacter !== false;
+        : templateDefaults.consistentCharacter !== false;
     const subtitles =
       body.subtitles !== undefined
         ? body.subtitles !== false
-        : bpDefaults.subtitles !== false;
+        : templateDefaults.subtitles !== false;
 
     try {
       assertFfmpegAvailable();
@@ -409,11 +413,11 @@ export async function POST(request: Request) {
               consistentCharacter,
               subtitles,
               step: "queued",
-              blueprintId: blueprint?.id,
-              visualStyle: blueprint?.visualStyle || undefined,
-              dramaNotes: blueprint?.dramaNotes || undefined,
-              visualArcNotes: blueprint?.visualArcNotes || undefined,
-              subtitleNotes: blueprint?.subtitleNotes || undefined,
+              templateId: template?.id,
+              visualStyle: template?.visualStyle || undefined,
+              dramaNotes: template?.dramaNotes || undefined,
+              visualArcNotes: template?.visualArcNotes || undefined,
+              subtitleNotes: template?.subtitleNotes || undefined,
             },
           })
           .returning();

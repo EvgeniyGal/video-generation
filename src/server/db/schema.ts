@@ -87,7 +87,7 @@ export const ideas = pgTable("vc_ideas", {
 });
 
 /** Directing DNA for Slideshow / HeyGen Video / Carousel generation. */
-export type BlueprintDefaults = {
+export type TemplateDefaults = {
   sceneCount?: number;
   consistentCharacter?: boolean;
   subtitles?: boolean;
@@ -96,14 +96,18 @@ export type BlueprintDefaults = {
   carouselAestheticNotes?: string;
 };
 
-export const blueprints = pgTable("vc_blueprints", {
+/** @deprecated Use TemplateDefaults */
+export type BlueprintDefaults = TemplateDefaults;
+
+/** Physical table remains vc_blueprints (legacy name); app code uses "templates". */
+export const templates = pgTable("vc_blueprints", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   brandTone: text("brand_tone").notNull().default(""),
   visualStyle: text("visual_style").notNull().default(""),
   language: text("language").notNull().default("ua"), // en | ua
-  defaults: jsonb("defaults").$type<BlueprintDefaults>().notNull().default({}),
+  defaults: jsonb("defaults").$type<TemplateDefaults>().notNull().default({}),
   dramaNotes: text("drama_notes").notNull().default(""),
   visualArcNotes: text("visual_arc_notes").notNull().default(""),
   subtitleNotes: text("subtitle_notes").notNull().default(""),
@@ -112,6 +116,9 @@ export const blueprints = pgTable("vc_blueprints", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** @deprecated Use templates */
+export const blueprints = templates;
 
 export const reelDrafts = pgTable("vc_reel_drafts", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -165,11 +172,13 @@ export type SlideshowJobPayload = {
   subtitles?: boolean;
   step?: string;
   scenePlan?: unknown;
-  /** Snapshot from blueprint at enqueue (preferred over draft.visualStyle). */
+  /** Snapshot from template at enqueue (preferred over draft.visualStyle). */
   visualStyle?: string;
   dramaNotes?: string;
   visualArcNotes?: string;
   subtitleNotes?: string;
+  templateId?: string;
+  /** @deprecated Prefer templateId */
   blueprintId?: string;
   /** Stock slideshow only — scenes with user-picked stock images. */
   stockScenes?: StockSceneSelection[];

@@ -57,7 +57,7 @@ Script:
 ${params.script}
 Visual style notes:
 ${params.visualStyle || "Photorealistic emotional short-form reel stills"}
-${params.dramaNotes ? `Dramaturgy / narrative blueprint:\n${params.dramaNotes}` : ""}
+${params.dramaNotes ? `Dramaturgy / narrative template:\n${params.dramaNotes}` : ""}
 ${params.visualArcNotes ? `Visual arc / shot progression:\n${params.visualArcNotes}` : ""}
 ${params.subtitleNotes ? `Subtitle style notes (inform pacing/emphasis only; burn-in is separate):\n${params.subtitleNotes}` : ""}
 

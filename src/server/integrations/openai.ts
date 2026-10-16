@@ -235,7 +235,7 @@ export function buildHeyGenPrompt(content: {
     `Spoken script:\n${content.script}`,
     `Visual style and production notes:\n${content.visualStyle}`,
     content.dramaNotes
-      ? `Dramaturgy / narrative blueprint:\n${content.dramaNotes}`
+      ? `Dramaturgy / narrative template:\n${content.dramaNotes}`
       : null,
     content.visualArcNotes
       ? `Visual arc / shot progression:\n${content.visualArcNotes}`
@@ -251,7 +251,7 @@ export function buildHeyGenPrompt(content: {
     .join("\n\n");
 }
 
-export const blueprintSuggestSchema = z.object({
+export const templateSuggestSchema = z.object({
   name: z.string(),
   description: z.string().optional().default(""),
   brandTone: z.string().optional().default(""),
@@ -268,9 +268,14 @@ export const blueprintSuggestSchema = z.object({
   carouselAestheticNotes: z.string().optional().default(""),
 });
 
-export type BlueprintSuggest = z.infer<typeof blueprintSuggestSchema>;
+/** @deprecated Use templateSuggestSchema */
+export const blueprintSuggestSchema = templateSuggestSchema;
 
-const BLUEPRINT_SYSTEM_PROMPT = `You design reusable short-form content blueprints for Reels/TikTok/Shorts (slideshow stills, avatar video, and photo carousels).
+export type TemplateSuggest = z.infer<typeof templateSuggestSchema>;
+/** @deprecated Use TemplateSuggest */
+export type BlueprintSuggest = TemplateSuggest;
+
+const TEMPLATE_SYSTEM_PROMPT = `You design reusable short-form content templates for Reels/TikTok/Shorts (slideshow stills, avatar video, and photo carousels).
 Given a video review / case study OR a short creative brief, extract directing DNA into structured fields.
 
 Map typical review sections:
@@ -286,13 +291,13 @@ Map typical review sections:
 Prefer concrete, reusable instructions over summarizing the source. name should be short and memorable.
 Return ONLY valid JSON matching the schema.`;
 
-export async function generateBlueprintFromInput(params: {
+export async function generateTemplateFromInput(params: {
   apiKey: string;
   reviewText?: string;
   brief?: string;
   language?: ContentLanguage;
   model?: string;
-}): Promise<BlueprintSuggest> {
+}): Promise<TemplateSuggest> {
   const client = new OpenAI({ apiKey: params.apiKey });
   const model = params.model || "gpt-4.1-mini";
   const language: ContentLanguage = params.language ?? "ua";
@@ -308,10 +313,10 @@ export async function generateBlueprintFromInput(params: {
     temperature: 0.55,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: BLUEPRINT_SYSTEM_PROMPT },
+      { role: "system", content: TEMPLATE_SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Preferred blueprint language hint for narrative notes: ${languageName} (${language}).
+        content: `Preferred template language hint for narrative notes: ${languageName} (${language}).
 visualStyle, heygenNotes, and carouselAestheticNotes MUST be in English for production tools.
 brandTone / dramaNotes / visualArcNotes / subtitleNotes / description may be in ${languageName}.
 
@@ -324,10 +329,13 @@ Respond with JSON keys: name, description, brandTone, visualStyle, language ("en
   });
 
   const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error("OpenAI returned empty blueprint");
+  if (!raw) throw new Error("OpenAI returned empty template");
 
-  return blueprintSuggestSchema.parse(JSON.parse(raw));
+  return templateSuggestSchema.parse(JSON.parse(raw));
 }
+
+/** @deprecated Use generateTemplateFromInput */
+export const generateBlueprintFromInput = generateTemplateFromInput;
 
 /** Models useful for chat / structured content generation. */
 const CHAT_MODEL_HINT =
