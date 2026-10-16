@@ -202,14 +202,24 @@ export default function VideosPage() {
 
   async function pollNow() {
     setMessage(null);
-    const res = await fetch("/api/jobs/poll-heygen", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      setMessage(data.error || "Poll failed");
-      return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/jobs/poll-videos", { method: "POST" });
+      const data = await res.json();
+      // Always refresh the list so ready slideshows/stock slides appear even if
+      // jobs finished in the background outside this request.
+      await load();
+      if (!res.ok) {
+        setMessage(data.error || "Update failed");
+        return;
+      }
+      setMessage(tf(t.videos.processed, { count: data.processed ?? 0 }));
+    } catch (err) {
+      await load();
+      setMessage(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setLoading(false);
     }
-    setMessage(tf(t.videos.processed, { count: data.processed ?? 0 }));
-    await load();
   }
 
   async function onUpload(e: FormEvent) {
@@ -314,7 +324,12 @@ export default function VideosPage() {
           <p className="muted">{t.videos.subtitle}</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <button className="btn btn-secondary" type="button" onClick={pollNow}>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            disabled={loading}
+            onClick={pollNow}
+          >
             {t.videos.poll}
           </button>
           <button

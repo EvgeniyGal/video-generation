@@ -252,7 +252,7 @@ const en = {
     title: "Videos",
     subtitle:
       "HeyGen Video, Slideshow, and custom uploads re-hosted to public Supabase Storage.",
-    poll: "Poll HeyGen Video now",
+    poll: "Update video statuses",
     addCustom: "Add custom video",
     uploadTitle: "Upload custom video",
     uploadHint: "MP4, MOV, or WebM · max 100MB",
@@ -747,7 +747,7 @@ const ua: Messages = {
     title: "Відео",
     subtitle:
       "Рендери HeyGen Відео, Slideshow і власні завантаження зберігаються в публічному Supabase Storage.",
-    poll: "Оновити статус HeyGen Відео",
+    poll: "Оновити статуси відео",
     addCustom: "Додати своє відео",
     uploadTitle: "Завантажити своє відео",
     uploadHint: "MP4, MOV або WebM · до 100 МБ",
